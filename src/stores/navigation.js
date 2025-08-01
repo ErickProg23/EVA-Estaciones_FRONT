@@ -36,24 +36,23 @@ export const useNavigationStore = defineStore('navigation', () => {
           value: 'stations',
           route: '/administration/stations',
           type: 'item'
+        },
+        {
+          title: 'Personal',
+          icon: 'mdi-account',
+          value: 'personal',
+          route: '/administration/personal',
+          type: 'item'
+        },
+        {
+          title: 'Puesto',
+          icon: 'mdi-account-supervisor',
+          value: 'puesto',
+          route: '/administration/puesto',
+          type: 'item'
         }
       ]
     },
-    {
-      title: 'Reportes',
-      icon: 'mdi-chart-box',
-      value: 'reports',
-      route: '/reports',
-      type: 'item'
-    },
-    {
-      title: 'Inventario',
-      icon: 'mdi-package-variant',
-      value: 'inventory',
-      route: '/inventory',
-      type: 'item',
-      badge: '5'
-    }
   ])
   
   // Acciones

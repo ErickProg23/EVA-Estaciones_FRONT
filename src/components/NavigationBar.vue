@@ -1,32 +1,11 @@
 <template>
   <v-navigation-drawer
     v-model="navigationStore.drawer"
-    :rail="navigationStore.rail"
     permanent
     color="#1a1a1a"
     border="0"
     class="custom-drawer"
   >
-    <!-- Logo y título -->
-    <v-list-item
-      prepend-icon="mdi-view-dashboard"
-      :title="navigationStore.rail ? '' : 'EVA System'"
-      nav
-      class="logo-item"
-    >
-      <template v-slot:append>
-        <v-btn
-          variant="text"
-          icon="mdi-chevron-left"
-          @click.stop="navigationStore.toggleRail()"
-          size="small"
-          v-if="!navigationStore.rail"
-        ></v-btn>
-      </template>
-    </v-list-item>
-
-    <v-divider class="border-opacity-25"></v-divider>
-
     <!-- Menú de navegación jerárquico -->
     <v-list density="compact" nav class="navigation-list">
       <template v-for="item in navigationStore.menuItems" :key="item.value">

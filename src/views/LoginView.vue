@@ -138,21 +138,23 @@ const handleLogin = async () => {
     })
     
     const data = await response.json()
+
+    console.log(data)
     
     if (response.ok) {
       // Login exitoso
       success.value = '¡Inicio de sesión exitoso! Redirigiendo...'
       
-      localStorage.setItem('isAuthenticated', 'true')
-      localStorage.setItem('username', username.value)
+      sessionStorage.setItem('isAuthenticated', 'true')
+      sessionStorage.setItem('username', username.value)
+      sessionStorage.setItem('rol_id', data.rol_id)
+      sessionStorage.setItem('estacion_id', data.estacion_id)
       if (data.token) {
-        localStorage.setItem('token', data.token)
+        sessionStorage.setItem('token', data.token)
       }
       
-      // Pequeña pausa para mostrar el mensaje de éxito
-      setTimeout(async () => {
-        await router.push('/dashboard')
-      }, 1500)
+      // Navegar inmediatamente sin setTimeout
+      await router.push('/dashboard')
       
     } else {
       // Error del servidor

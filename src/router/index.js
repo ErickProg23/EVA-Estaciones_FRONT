@@ -2,6 +2,9 @@ import { createRouter, createWebHistory } from 'vue-router'
 import LoginView from '../views/LoginView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import UsersView from '../views/UsersView.vue'
+import StationsView from '../views/StationsView.vue'
+import PersonalView from '../views/PersonalView.vue'
+import PuestoView from '../views/PuestoView.vue'
 
 const routes = [
   {
@@ -25,6 +28,24 @@ const routes = [
     component: UsersView,
     meta: { requiresAuth: true }
   },
+  {
+    path: '/administration/stations',
+    name: 'stations',
+    component: StationsView,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/administration/personal',
+    name: 'personal',
+    component: PersonalView,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/administration/puesto',
+    name: 'puesto',
+    component: PuestoView,
+    meta: { requiresAuth: true }
+  }
 ]
 
 const router = createRouter({
@@ -34,7 +55,7 @@ const router = createRouter({
 
 // Navigation guard
 router.beforeEach((to, from, next) => {
-  const isAuthenticated = localStorage.getItem('isAuthenticated')
+  const isAuthenticated = sessionStorage.getItem('isAuthenticated')
   
   if (to.meta.requiresAuth && !isAuthenticated) {
     next('/')

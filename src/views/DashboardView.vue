@@ -1,64 +1,21 @@
 <template>
-  <div>
-    <!-- App Bar -->
-    <v-app-bar
-      color="#2d2d2d"
-      dark
-      elevation="4"
-      border="0"
-      class="custom-app-bar"
-    >
-      <v-app-bar-nav-icon
-        @click="navigationStore.toggleDrawer()"
-        v-if="$vuetify.display.mobile"
-      ></v-app-bar-nav-icon>
-      
-      <v-app-bar-title class="d-flex align-center">
-        <v-icon class="mr-2" color="green">{{ navigationStore.getCurrentModuleInfo().icon }}</v-icon>
-        {{ navigationStore.getCurrentModuleInfo().title }}
-      </v-app-bar-title>
-      
-      <v-spacer></v-spacer>
-      
-      <!-- Notificaciones y usuario... -->
-    </v-app-bar>
 
-    <!-- Contenido principal -->
-    <v-main class="main-content">
-      <!-- Tu contenido del dashboard aquí -->
-    </v-main>
-  </div>
+
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useNavigationStore } from '@/stores/navigation'
 
-// ===== COMPOSABLES =====
-const _router = useRouter()
 
 // ===== REACTIVE DATA =====
 const username = ref('')
-const showSnackbar = ref(false)
-const snackbarMessage = ref('')
-const snackbarColor = ref('success')
 
-const navigationStore = useNavigationStore()
 
 // ===== LIFECYCLE =====
 onMounted(() => {
-  username.value = localStorage.getItem('username') || 'Usuario'
+  username.value = sessionStorage.getItem('username') || 'Usuario'
   
-  showMessage('¡Bienvenido al sistema EVA!', 'success')
 })
-
-
-const showMessage = (message, color = 'success') => {
-  snackbarMessage.value = message
-  snackbarColor.value = color
-  showSnackbar.value = true
-}
 </script>
 
 <style scoped>
