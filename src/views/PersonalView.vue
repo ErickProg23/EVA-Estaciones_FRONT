@@ -92,6 +92,17 @@
               </v-card-text>
             </v-card>
 
+            <v-card class="mb-4" v-if="!isInitialLoading">
+              <v-card-text>
+                <strong>Debug Info:</strong><br>
+                Personal array length: {{ personal.length }}<br>
+                Filtered personal length: {{ filteredPersonal.length }}<br>
+                Selected estacion: {{ selectedEstacion }}<br>
+                Selected puesto: {{ selectedPuesto }}<br>
+                <pre>{{ JSON.stringify(personal.slice(0, 2), null, 2) }}</pre>
+              </v-card-text>
+            </v-card>
+
             <!-- Tabla de personal -->
             <v-card dark color="#2d2d2d">
               <v-card-text class="pa-0">
@@ -167,6 +178,7 @@
           {{ editingPersonal ? 'Editar Personal' : 'Nuevo Personal' }}
         </v-card-title>
         
+        <!-- Reemplazar el contenido del v-card-text del diálogo -->
         <v-card-text>
           <v-form ref="form" v-model="formValid">
             <v-row>
@@ -174,39 +186,20 @@
                 <v-text-field
                   v-model="personalForm.nombre"
                   label="Nombre completo"
-                  :rules="[rules.required]"
+                  :rules="[v => !!v || 'Este campo es requerido']"
                   required
                 ></v-text-field>
               </v-col>
               <v-col cols="12" md="6">
                 <v-text-field
-                  v-model="personalForm.cedula"
-                  label="Cédula"
-                  :rules="[rules.required]"
+                  v-model="personalForm.num_empleado"
+                  label="Número de empleado"
+                  :rules="[v => !!v || 'Este campo es requerido']"
                   required
                 ></v-text-field>
               </v-col>
             </v-row>
-            
-            <v-row>
-              <v-col cols="12" md="6">
-                <v-text-field
-                  v-model="personalForm.telefono"
-                  label="Teléfono"
-                  :rules="[rules.required]"
-                  required
-                ></v-text-field>
-              </v-col>
-              <v-col cols="12" md="6">
-                <v-text-field
-                  v-model="personalForm.email"
-                  label="Email"
-                  type="email"
-                  :rules="[rules.email]"
-                ></v-text-field>
-              </v-col>
-            </v-row>
-            
+                
             <v-row>
               <v-col cols="12" md="6">
                 <v-select
@@ -217,27 +210,40 @@
                   label="Estación"
                   :rules="[rules.required]"
                   required
-                ></v-select>
+                >
+                </v-select>
               </v-col>
+              
               <v-col cols="12" md="6">
-                <v-text-field
-                  v-model="personalForm.puesto"
+                <v-select
+                  v-model="personalForm.puesto_id"
+                  :items="puestos"
+                  item-title="nombre"
+                  item-value="id"
                   label="Puesto"
                   :rules="[rules.required]"
                   required
-                ></v-text-field>
+                >
+                </v-select>
               </v-col>
-            </v-row>
-            
-            <v-row>
-              <v-col cols="12" md="6">
-                <v-text-field
-                  v-model="personalForm.salario"
-                  label="Salario"
-                  type="number"
-                  prefix="$"
-                ></v-text-field>
-              </v-col>
+
+              <!-- Reemplazar el v-select de tipo_evaluacion existente -->
+              <v-select
+                v-model="personalForm.tipo_evaluacion"
+                :items="tiposEvaluacion"
+                item-title="title"
+                item-value="value"
+                label="Tipo de Evaluación"
+                :rules="[rules.required]"
+                :disabled="isTipoEvaluacionDisabled"
+                :hint="isTipoEvaluacionDisabled ? 'Se asigna automáticamente según el puesto seleccionado' : ''"
+                persistent-hint
+                required
+              >
+                <template #append-inner v-if="isTipoEvaluacionDisabled">
+                  <v-icon color="primary">mdi-lock</v-icon>
+                </template>
+              </v-select>
               <v-col cols="12" md="6">
                 <v-switch
                   v-model="personalForm.activo"
@@ -312,9 +318,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import LoadingWave from '@/components/LoadingWave.vue'
-import { userService, roleService, stationService } from '@/services/apiService'
+import { roleService, stationService, puestoService, empleadoService } from '@/services/apiService'
 
 // ===== REACTIVE DATA =====
 const loading = ref(false)
@@ -328,31 +334,79 @@ const selectedEstacion = ref(null)
 const selectedPuesto = ref(null)
 const editingPersonal = ref(null)
 const personalToDelete = ref(null)
+// Agregar junto con las otras variables reactivas
 const formValid = ref(false)
+const form = ref(null)
 const search = ref('')
-
-// Estados de carga inicial
+// Agregar después de la definición de personalForm
+const puestos = ref([])
+const tiposEvaluacion = ref([
+  { title: 'Operativo', value: '1' },
+  { title: 'Administrativo', value: '2' },
+])
+// Agregar después de las variables reactivas existentes (línea ~330)
 const isInitialLoading = ref(true)
 const loadingMessage = ref('Inicializando...')
 const loadingProgress = ref(0)
 const dataLoadingStates = ref({
   personal: false,
-  estaciones: false
+  estaciones: false,
+  puestos: false
 })
 
-// Datos
 const personal = ref([])
 const estaciones = ref([])
 
 const personalForm = ref({
   nombre: '',
-  cedula: '',
-  telefono: '',
-  email: '',
+  num_empleado: '',
   estacion_id: null,
-  puesto: '',
-  salario: null,
+  puesto_id: null,
+  tipo_evaluacion: null,
   activo: true
+})
+
+// Agregar después de la definición de tiposEvaluacion
+const puestoToTipoEvaluacion = {
+  // Puestos Administrativos (ID: 2)
+  'Auxiliar administrativo': '2',
+  'Cumplimientos': '2',
+  
+  // Puestos Operativos (ID: 1)
+  'Mantenimiento': '1',
+  'Despachador': '1',
+  'Caja': '1',
+  'Aseo': '1'
+}
+
+// Agregar después de las variables reactivas
+const isTipoEvaluacionDisabled = computed(() => {
+  if (!personalForm.value.puesto_id) return false
+  
+  const puestoSeleccionado = puestos.value.find(p => p.id === personalForm.value.puesto_id)
+  if (!puestoSeleccionado) return false
+  
+  return puestoToTipoEvaluacion.hasOwnProperty(puestoSeleccionado.nombre)
+})
+
+// Agregar después de las variables reactivas (línea ~330)
+const rules = {
+  required: value => !!value || 'Este campo es requerido'
+}
+
+watch(() => personalForm.value.puesto_id, (newPuestoId) => {
+  if (!newPuestoId) {
+    personalForm.value.tipo_evaluacion = null
+    return
+  }
+  
+  const puestoSeleccionado = puestos.value.find(p => p.id === newPuestoId)
+  if (!puestoSeleccionado) return
+  
+  const tipoEvaluacionAuto = puestoToTipoEvaluacion[puestoSeleccionado.nombre]
+  if (tipoEvaluacionAuto) {
+    personalForm.value.tipo_evaluacion = tipoEvaluacionAuto
+  }
 })
 
 // Encabezados de la tabla
@@ -362,12 +416,8 @@ const headers = [
     key: 'nombre'
   },
   {
-    title: 'Cédula',
-    key: 'cedula'
-  },
-  {
-    title: 'Teléfono',
-    key: 'telefono'
+    title: 'Num. emplado',
+    key: 'num_empleado'
   },
   {
     title: 'Estación',
@@ -376,6 +426,10 @@ const headers = [
   {
     title: 'Puesto',
     key: 'puesto'
+  },
+  {
+    title: 'Tipo evaluacion',
+    key: 'tipo_evaluacion'
   },
   {
     title: 'Estado',
@@ -388,27 +442,18 @@ const headers = [
   }
 ]
 
-// Reglas de validación
-const rules = {
-  required: value => !!value || 'Este campo es requerido',
-  email: value => {
-    if (!value) return true
-    const pattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    return pattern.test(value) || 'Email inválido'
-  }
-}
-
 // ===== COMPUTED PROPERTIES =====
 const filteredPersonal = computed(() => {
   let filtered = personal.value
   
-  if (selectedEstacion.value) {
-    filtered = filtered.filter(p => p.estacion_id === selectedEstacion.value)
-  }
-  
-  if (selectedPuesto.value) {
-    filtered = filtered.filter(p => p.puesto === selectedPuesto.value)
-  }
+  // ❌ COMENTAR TEMPORALMENTE:
+  // if (selectedEstacion.value) {
+  //   filtered = filtered.filter(p => p.estacion_id === selectedEstacion.value)
+  // }
+  // 
+  // if (selectedPuesto.value) {
+  //   filtered = filtered.filter(p => p.puesto === selectedPuesto.value)
+  // }
   
   return filtered
 })
@@ -430,7 +475,7 @@ const puestoOptions = computed(() => {
   return options
 })
 
-// ===== METHODS =====
+// Agregar esta función antes de las funciones de carga
 const updateLoadingProgress = () => {
   const totalTasks = Object.keys(dataLoadingStates.value).length
   const completedTasks = Object.values(dataLoadingStates.value).filter(Boolean).length
@@ -443,23 +488,28 @@ const updateLoadingProgress = () => {
   }
 }
 
+// Mejorar la función loadEstaciones existente
 const loadEstaciones = async () => {
   try {
-    loadingMessage.value = 'Cargando estaciones...'
+    console.log('Cargando estaciones...')
     const result = await stationService.getEstaciones()
+    console.log('Respuesta completa de estaciones:', result)
     
     if (result.success) {
-      estaciones.value = result.data
-      console.log('Estaciones cargadas:', result.data)
+      estaciones.value = result.data || []
+      console.log('Estaciones cargadas:', estaciones.value)
     } else {
-      console.warn('No se pudieron cargar las estaciones:', result.message)
+      console.error('Error en respuesta de estaciones:', result.message)
+      estaciones.value = []
     }
     
+    // ✅ AGREGAR ESTAS LÍNEAS:
     dataLoadingStates.value.estaciones = true
     updateLoadingProgress()
   } catch (error) {
     console.error('Error al cargar estaciones:', error)
-    showMessage('Error al cargar estaciones', 'error')
+    estaciones.value = []
+    // ✅ AGREGAR ESTAS LÍNEAS TAMBIÉN:
     dataLoadingStates.value.estaciones = true
     updateLoadingProgress()
   }
@@ -468,48 +518,17 @@ const loadEstaciones = async () => {
 const loadPersonal = async () => {
   try {
     loadingMessage.value = 'Cargando personal...'
+    const result = await empleadoService.getEmpleados()
     
-    // Aquí deberías usar personalService.getPersonal() cuando lo crees
-    // const result = await personalService.getPersonal()
-    
-    // Datos de ejemplo mientras tanto
-    const result = {
-      success: true,
-      data: [
-        {
-          id: 1,
-          nombre: 'Juan Pérez',
-          cedula: '12345678',
-          telefono: '555-0123',
-          email: 'juan@example.com',
-          estacion_id: 1,
-          puesto: 'Operador',
-          salario: 2500,
-          activo: true
-        },
-        {
-          id: 2,
-          nombre: 'María García',
-          cedula: '87654321',
-          telefono: '555-0456',
-          email: 'maria@example.com',
-          estacion_id: 2,
-          puesto: 'Supervisor',
-          salario: 3500,
-          activo: true
-        }
-      ]
-    }
+    console.log('Respuesta completa del backend:', result) // ✅ Agregar esto
     
     if (result.success) {
-      personal.value = result.data.map(p => ({
-        ...p,
-        estacion: estaciones.value.find(e => e.id === p.estacion_id) || null
-      }))
-      console.log('Personal cargado:', personal.value)
+      personal.value = result.personal || []
+      console.log('Personal cargado:', personal.value) // ✅ Corregir esto
+      console.log('Cantidad de empleados:', personal.value.length) // ✅ Agregar esto
     } else {
       console.warn('No se pudo cargar el personal:', result.message)
-      showMessage('Error al cargar personal', 'error')
+      personal.value = []
     }
     
     dataLoadingStates.value.personal = true
@@ -517,13 +536,42 @@ const loadPersonal = async () => {
   } catch (error) {
     console.error('Error al cargar personal:', error)
     showMessage('Error al cargar personal', 'error')
+    personal.value = [] // ✅ Agregar esto
     dataLoadingStates.value.personal = true
+    updateLoadingProgress()
+  }
+}
+
+// Reemplazar la función loadPuestos existente
+const loadPuestos = async () => {
+  try {
+    console.log('Cargando puestos...')
+    const response = await puestoService.getPuestos()
+    console.log('Respuesta completa de puestos:', response)
+    
+    if (response.success) {
+      puestos.value = response.puestos || []
+      console.log('Puestos cargados:', puestos.value)
+    } else {
+      console.error('Error en respuesta de puestos:', response.message)
+      puestos.value = []
+    }
+    
+    // ✅ AGREGAR ESTAS LÍNEAS:
+    dataLoadingStates.value.puestos = true
+    updateLoadingProgress()
+  } catch (error) {
+    console.error('Error al cargar puestos:', error)
+    puestos.value = []
+    // ✅ AGREGAR ESTAS LÍNEAS TAMBIÉN:
+    dataLoadingStates.value.puestos = true
     updateLoadingProgress()
   }
 }
 
 const initializeData = async () => {
   await loadEstaciones()
+  await loadPuestos() 
   await loadPersonal()
 }
 
@@ -568,12 +616,10 @@ const closeDialog = () => {
 const clearForm = () => {
   personalForm.value = {
     nombre: '',
-    cedula: '',
-    telefono: '',
-    email: '',
+    num_empleado: '',
     estacion_id: null,
-    puesto: '',
-    salario: null,
+    puesto_id: null,
+    tipo_evaluacion: null,
     activo: true
   }
 }
@@ -581,44 +627,28 @@ const clearForm = () => {
 const editPersonal = (personalItem) => {
   editingPersonal.value = personalItem
   personalForm.value = {
-    nombre: personalItem.nombre,
-    cedula: personalItem.cedula,
-    telefono: personalItem.telefono,
-    email: personalItem.email,
-    estacion_id: personalItem.estacion_id,
-    puesto: personalItem.puesto,
-    salario: personalItem.salario,
-    activo: personalItem.activo
+    nombre: personalItem.nombre || '',
+    num_empleado: personalItem.num_empleado || '',
+    estacion_id: personalItem.estacion_id || null,
+    puesto_id: personalItem.puesto_id || null,
+    tipo_evaluacion: personalItem.tipo_evaluacion || null,
+    activo: personalItem.activo !== undefined ? personalItem.activo : true
   }
   showDialog.value = true
 }
 
 const savePersonal = async () => {
-  if (!formValid.value) return
   
-  try {
-    saving.value = true
-    
-    // Aquí deberías usar personalService cuando lo crees
-    // const result = editingPersonal.value 
-    //   ? await personalService.updatePersonal(editingPersonal.value.id, personalForm.value)
-    //   : await personalService.createPersonal(personalForm.value)
-    
-    // Simulación por ahora
-    const result = { success: true, message: 'Personal guardado correctamente' }
-    
-    if (result.success) {
+  try{
+    const result = await empleadoService.newEmpleado(personalForm.value)
+    if(result.success){
       showMessage(result.message || 'Personal guardado correctamente', 'success')
       closeDialog()
       await refreshData()
-    } else {
-      showMessage(result.message || 'Error al guardar personal', 'error')
     }
-  } catch (error) {
+  }catch(error){
     console.error('Error al guardar personal:', error)
     showMessage('Error al conectar con el servidor', 'error')
-  } finally {
-    saving.value = false
   }
 }
 
@@ -652,10 +682,12 @@ const confirmDelete = async () => {
   }
 }
 
-// Lifecycle
-onMounted(() => {
-  initializeData()
+// Al final del script
+onMounted(async () => {
+  console.log('Componente montado, iniciando carga de datos...')
+  await initializeData()
 })
+
 </script>
 
 <style scoped>

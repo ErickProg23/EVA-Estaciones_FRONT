@@ -145,17 +145,25 @@ export const puestoService = {
       const response = await apiClient.get('/api/getPuestos')
       console.log('Respuesta de puestos:', response.data)
       
-      // El backend devuelve directamente el array de puestos
-      return {
-        success: true,
-        data: Array.isArray(response.data) ? response.data : [],
-        message: 'Puestos obtenidos correctamente'
+      // CORRECCIÓN: El backend devuelve {puestos: [...], success: true}
+      if (response.data && response.data.success) {
+        return {
+          success: true,
+          puestos: response.data.puestos || [], // ← Cambiar aquí
+          message: 'Puestos obtenidos correctamente'
+        }
+      } else {
+        return {
+          success: false,
+          puestos: [], // ← Y aquí
+          message: 'No se encontraron puestos'
+        }
       }
     } catch (error) {
       console.error('Error en getPuestos:', error)
       return {
         success: false,
-        data: [],
+        puestos: [], // ← Y aquí también
         message: error.message || 'Error de conexión'
       }
     }
@@ -166,6 +174,29 @@ export const puestoService = {
       return {
         success: response.data.success,
         data: response.data,
+        message: response.data.message
+      }
+    } catch (error) {
+      throw error
+    }
+  },
+  updatePuesto: async (id, puestoData) => {
+    try {
+      const response = await apiClient.put(`/api/updatePuesto/${id}`, puestoData)
+      return {
+        success: response.data.success,
+        data: response.data,
+        message: response.data.message
+      }
+    } catch (error) {
+      throw error
+    }
+  },
+  deletePuesto: async (id) => {
+    try {
+      const response = await apiClient.delete(`/api/deletePuesto/${id}`)
+      return {
+        success: response.data.success,
         message: response.data.message
       }
     } catch (error) {
@@ -222,6 +253,65 @@ export const stationService = {
       throw error
     }
   }
+}
+
+export const empleadoService = {
+  getEmpleados: async () => {
+    try {
+      const response = await apiClient.get('/api/getPersonal')
+      console.log('Respuesta de empleados:', response.data)
+      
+      // El backend devuelve directamente el array de empleados
+      return {
+        success: true,
+        data: Array.isArray(response.data) ? response.data : [],
+        message: 'Empleados obtenidos correctamente'
+      }
+    } catch (error) {
+      console.error('Error en getEmpleados:', error)
+      return {
+        success: false,
+        data: [],
+        message: error.message || 'Error de conexión'
+      }
+    }
+  },
+  newEmpleado: async (empleadoData) => {
+    try {
+      const response = await apiClient.post('/api/newPersonal', empleadoData)
+      return {
+        success: response.data.success,
+        data: response.data,
+        message: response.data.message
+      }
+    } catch (error) {
+      throw error
+    }
+  },
+  updateEmpleado: async (id, empleadoData) => {
+    try {
+      const response = await apiClient.put(`/api/updatePersonal/${id}`, empleadoData)
+      return {
+        success: response.data.success,
+        data: response.data,
+        message: response.data.message
+      }
+    } catch (error) {
+      throw error
+    }
+  },
+  deleteEmpleado: async (id) => {
+    try {
+      const response = await apiClient.delete(`/api/deletePersonal/${id}`)
+      return {
+        success: response.data.success,
+        message: response.data.message
+      }
+    } catch (error) {
+      throw error
+    }
+  }
+
 }
 
 // Exportar cliente base para casos especiales

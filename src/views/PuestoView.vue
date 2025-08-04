@@ -249,7 +249,6 @@ const loading = ref(false)
 const saving = ref(false)
 const deleting = ref(false)
 const showAddDialog = ref(false)
-const showDeleteDialog = ref(false)
 const showSnackbar = ref(false)
 const snackbarMessage = ref('')
 const snackbarColor = ref('success')
@@ -278,9 +277,11 @@ const puestoForm = ref({
 })
 
 const statusOptions = [
-  { value: true, title: 'Activo' },
-  { value: false, title: 'Inactivo' }
+  { title: 'Todos', value: null },
+  { title: 'Activos', value: true },
+  { title: 'Inactivos', value: false }
 ]
+
 
 // Headers de la tabla
 const headers = [
@@ -310,13 +311,10 @@ const loadPuestos = async () => {
     loadingMessage.value = 'Cargando puestos...'
     loading.value = true
     const response = await puestoService.getPuestos()
-    
-    console.log('Respuesta completa:', response) // Para debug
-    
+        
     if (response.success) {
-      // Cambiar de response.data a response.puestos
-      puestos.value = response.puestos || response.data || []
-      console.log('Puestos cargados:', puestos.value)
+      // Asignar los datos
+      puestos.value = response.puestos || []
       
       dataLoadingStates.value.puestos = true
       updateLoadingProgress()
@@ -330,7 +328,6 @@ const loadPuestos = async () => {
       updateLoadingProgress()
     }
   } catch (error) {
-    console.error('Error al cargar puestos:', error)
     showMessage('Error al conectar con el servidor', 'error')
     dataLoadingStates.value.puestos = true
     updateLoadingProgress()
@@ -349,13 +346,15 @@ const showMessage = (message, color = 'success') => {
 // Computed para filtrar puestos
 const filteredPuestos = computed(() => {
   let filtered = puestos.value
-  
+
   if (selectedStatus.value !== null && selectedStatus.value !== undefined) {
     filtered = filtered.filter(puesto => puesto.activo === selectedStatus.value)
   }
-  
+
   return filtered
 })
+
+
 
 const loadEstaciones = async () => {
   try {
@@ -406,6 +405,13 @@ const openDialog = () => {
 const closeDialog = () => {
   showAddDialog.value = false
   editingPuesto.value = null
+  
+  // Limpiar el formulario
+  puestoForm.value = {
+    nombre: '',
+    estacion_id: '',
+    activo: true
+  }
 }
 
 const clearForm = () => {
@@ -430,35 +436,68 @@ const savePuesto = async () => {
   try {
     saving.value = true
     
-    // Simulación de guardado - reemplazar con servicio real
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    if (editingPuesto.value) {
-      // Actualizar puesto existente
-      const index = puestos.value.findIndex(p => p.id === editingPuesto.value.id)
-      if (index !== -1) {
-        puestos.value[index] = {
-          ...editingPuesto.value,
-          ...puestoForm.value
-        }
-      }
-      showMessage('Puesto actualizado correctamente', 'success')
-    } else {
-      // Crear nuevo puesto
-      const newPuesto = {
-        id: Math.max(...puestos.value.map(p => p.id)) + 1,
-        ...puestoForm.value
-      }
-      puestos.value.push(newPuesto)
-      showMessage('Puesto creado correctamente', 'success')
+    // Validar el formulario
+    if (!formValid.value) {
+      showMessage('Por favor completa todos los campos requeridos', 'error')
+      return
     }
     
-    closeDialog()
+    // Preparar los datos del puesto
+    const puestoData = {
+      nombre: puestoForm.value.nombre,
+      estacion_id: puestoForm.value.estacion_id,
+      activo: puestoForm.value.activo
+    }
+    
+    console.log('Enviando datos del puesto:', puestoData)
+    
+    if (editingPuesto.value) {
+      // Modo edición
+      const response = await puestoService.updatePuesto(editingPuesto.value.id, puestoData)
+      if (response.success) {
+        showMessage('Puesto actualizado correctamente', 'success')
+        closeDialog()
+        await loadPuestos() // Recargar la lista de puestos
+      } else {
+        showMessage(response.message || 'Error al actualizar el puesto', 'error')
+      }
+    } else {
+      // Modo creación
+      const response = await puestoService.newPuesto(puestoData)
+      
+      console.log('Respuesta del servidor:', response)
+      
+      if (response.success) {
+        showMessage('Puesto creado correctamente', 'success')
+        closeDialog()
+        await loadPuestos() // Recargar la lista de puestos
+      } else {
+        showMessage(response.message || 'Error al crear el puesto', 'error')
+      }
+    }
   } catch (error) {
     console.error('Error al guardar puesto:', error)
-    showMessage('Error al guardar el puesto', 'error')
+    showMessage('Error al conectar con el servidor', 'error')
   } finally {
     saving.value = false
+  }
+}
+
+const deletePuesto = async (puesto) => {
+  try {
+    deleting.value = true
+    const response = await puestoService.deletePuesto(puesto.id)
+    if (response.success) {
+      showMessage('Puesto eliminado correctamente', 'success')
+      await loadPuestos() // Recargar la lista de puestos
+    } else {
+      showMessage(response.message || 'Error al eliminar el puesto', 'error')
+    }
+  } catch (error) {
+    console.error('Error al eliminar puesto:', error)
+    showMessage('Error al conectar con el servidor', 'error')
+  } finally {
+    deleting.value = false
   }
 }
 
