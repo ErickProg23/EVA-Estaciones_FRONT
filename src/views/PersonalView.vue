@@ -92,17 +92,6 @@
               </v-card-text>
             </v-card>
 
-            <v-card class="mb-4" v-if="!isInitialLoading">
-              <v-card-text>
-                <strong>Debug Info:</strong><br>
-                Personal array length: {{ personal.length }}<br>
-                Filtered personal length: {{ filteredPersonal.length }}<br>
-                Selected estacion: {{ selectedEstacion }}<br>
-                Selected puesto: {{ selectedPuesto }}<br>
-                <pre>{{ JSON.stringify(personal.slice(0, 2), null, 2) }}</pre>
-              </v-card-text>
-            </v-card>
-
             <!-- Tabla de personal -->
             <v-card dark color="#2d2d2d">
               <v-card-text class="pa-0">
@@ -204,9 +193,9 @@
               <v-col cols="12" md="6">
                 <v-select
                   v-model="personalForm.estacion_id"
-                  :items="estaciones"
-                  item-title="nombre"
-                  item-value="id"
+                  :items="estacionesParaFormulario"
+                  item-title="title"
+                  item-value="value"
                   label="Estación"
                   :rules="[rules.required]"
                   required
@@ -282,7 +271,7 @@
           Confirmar eliminación
         </v-card-title>
         <v-card-text>
-          ¿Estás seguro de que deseas eliminar a {{ personalToDelete?.nombre }}?
+          ¿Estás seguro de que deseas desactivar a {{ personalToDelete?.nombre }}?
         </v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
@@ -379,6 +368,11 @@ const puestoToTipoEvaluacion = {
   'Aseo': '1'
 }
 
+const tipoEvaluacion = {
+  '1': 'Operativo',
+  '2': 'Administrativo'
+}
+
 // Agregar después de las variables reactivas
 const isTipoEvaluacionDisabled = computed(() => {
   if (!personalForm.value.puesto_id) return false
@@ -447,23 +441,41 @@ const filteredPersonal = computed(() => {
   let filtered = personal.value
   
   // ❌ COMENTAR TEMPORALMENTE:
-  // if (selectedEstacion.value) {
-  //   filtered = filtered.filter(p => p.estacion_id === selectedEstacion.value)
-  // }
-  // 
-  // if (selectedPuesto.value) {
-  //   filtered = filtered.filter(p => p.puesto === selectedPuesto.value)
-  // }
+   if (selectedEstacion.value) {
+     filtered = filtered.filter(p => p.estacion_id === selectedEstacion.value)
+   }
+   
+   if (selectedPuesto.value) {
+     filtered = filtered.filter(p => p.puesto === selectedPuesto.value)
+   }
   
   return filtered
 })
 
 const estacionOptions = computed(() => {
   const options = [{ title: 'Todas las estaciones', value: null }]
-  estaciones.value.forEach(estacion => {
+  
+  // ✅ Filtrar estaciones excluyendo la especial
+  const estacionesFiltradas = estaciones.value.filter(estacion => 
+    estacion.nombre !== 'TODAS' // ← Cambiar por el nombre real
+  )
+  
+  estacionesFiltradas.forEach(estacion => {
     options.push({ title: estacion.nombre, value: estacion.id })
   })
+  
   return options
+})
+
+// Agregar después de estacionOptions
+const estacionesParaFormulario = computed(() => {
+  // ✅ Solo estaciones reales, sin "Todas las estaciones" y sin "TODAS"
+  return estaciones.value
+    .filter(estacion => estacion.nombre !== 'TODAS')
+    .map(estacion => ({
+      title: estacion.nombre,
+      value: estacion.id
+    }))
 })
 
 const puestoOptions = computed(() => {
@@ -638,17 +650,32 @@ const editPersonal = (personalItem) => {
 }
 
 const savePersonal = async () => {
+  saving.value = true
   
-  try{
-    const result = await empleadoService.newEmpleado(personalForm.value)
-    if(result.success){
-      showMessage(result.message || 'Personal guardado correctamente', 'success')
+  try {
+    let result
+    
+    if (editingPersonal.value) {
+      // ✅ EDITAR empleado existente
+      result = await empleadoService.updateEmpleado(editingPersonal.value.id, personalForm.value)
+    } else {
+      // ✅ CREAR nuevo empleado
+      result = await empleadoService.newEmpleado(personalForm.value)
+    }
+    
+    if (result.success) {
+      const action = editingPersonal.value ? 'actualizado' : 'creado'
+      showMessage(result.message || `Personal ${action} correctamente`, 'success')
       closeDialog()
       await refreshData()
+    } else {
+      showMessage(result.message || 'Error al guardar personal', 'error')
     }
-  }catch(error){
+  } catch (error) {
     console.error('Error al guardar personal:', error)
     showMessage('Error al conectar con el servidor', 'error')
+  } finally {
+    saving.value = false
   }
 }
 
@@ -661,11 +688,8 @@ const confirmDelete = async () => {
   if (!personalToDelete.value) return
   
   try {
-    // Aquí deberías usar personalService.deletePersonal()
-    // const result = await personalService.deletePersonal(personalToDelete.value.id)
-    
-    // Simulación por ahora
-    const result = { success: true, message: 'Personal eliminado correctamente' }
+    //Aquí deberías usar personalService.deletePersonal()
+    const result = await empleadoService.deleteEmpleado(personalToDelete.value.id)
     
     if (result.success) {
       showMessage(result.message || 'Personal eliminado correctamente', 'success')

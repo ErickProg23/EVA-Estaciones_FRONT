@@ -264,15 +264,14 @@ export const empleadoService = {
       // El backend devuelve directamente el array de empleados
       return {
         success: true,
-        data: Array.isArray(response.data) ? response.data : [],
-        message: 'Empleados obtenidos correctamente'
+        personal: Array.isArray(response.data) ? response.data : [],
       }
     } catch (error) {
       console.error('Error en getEmpleados:', error)
       return {
         success: false,
-        data: [],
-        message: error.message || 'Error de conexión'
+        personal: [],
+
       }
     }
   },
@@ -290,7 +289,7 @@ export const empleadoService = {
   },
   updateEmpleado: async (id, empleadoData) => {
     try {
-      const response = await apiClient.put(`/api/updatePersonal/${id}`, empleadoData)
+      const response = await apiClient.put(`/api/updateEmpleado/${id}`, empleadoData)
       return {
         success: response.data.success,
         data: response.data,
@@ -302,7 +301,7 @@ export const empleadoService = {
   },
   deleteEmpleado: async (id) => {
     try {
-      const response = await apiClient.delete(`/api/deletePersonal/${id}`)
+      const response = await apiClient.put(`/api/deleteEmpleado/${id}`)
       return {
         success: response.data.success,
         message: response.data.message
@@ -312,6 +311,106 @@ export const empleadoService = {
     }
   }
 
+}
+
+// Agregar al final del archivo, antes de la exportación
+// ✅ Agregar al aspectoService existente
+export const aspectoService = {
+  // Obtener todos los aspectos
+  getAspectos: async () => {
+    try {
+      const response = await apiClient.get('/api/getAspectos')
+      console.log('Respuesta de aspectos:', response.data)
+      
+      return {
+        success: true,
+        data: Array.isArray(response.data) ? response.data : [],
+        message: 'Aspectos obtenidos correctamente'
+      }
+    } catch (error) {
+      console.error('Error en getAspectos:', error)
+      return {
+        success: false,
+        data: [],
+        message: error.message || 'Error de conexión'
+      }
+    }
+  },
+
+  // Crear nuevo aspecto
+  createAspecto: async (aspectoData) => {
+    try {
+      const response = await apiClient.post('/api/newAspecto', aspectoData)
+      return {
+        success: response.data.success,
+        data: response.data,
+        message: response.data.message
+      }
+    } catch (error) {
+      throw error
+    }
+  },
+
+  // Actualizar aspecto
+  updateAspecto: async (id, aspectoData) => {
+    try {
+      const response = await apiClient.put(`/api/updateAspecto/${id}`, aspectoData)
+      return {
+        success: response.data.success,
+        data: response.data,
+        message: response.data.message
+      }
+    } catch (error) {
+      throw error
+    }
+  },
+
+  // Obtener aspectos por puesto
+  // Nuevo método para usar tu endpoint
+  async getAspectosByPuesto(puestoId) {
+    try {
+      const response = await apiClient.get(`/api/getAspectosByPuesto/${puestoId}`)
+      return {
+        success: true,
+        data: response.data
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Error al obtener aspectos del puesto'
+      }
+    }
+  },
+  
+  async updatePesoAspectoPuesto(puestoId, aspectoId, peso) {
+    try {
+      const response = await apiClient.put('/api/updatePesoAspectoPuesto', {
+        puesto_id: puestoId,
+        aspecto_id: aspectoId,
+        peso: peso
+      })
+      
+      // ✅ Verificar la nueva estructura de respuesta
+      if (response.data && response.data.success) {
+        return {
+          success: true,
+          data: response.data,
+          message: response.data.message || 'Peso procesado correctamente'
+        }
+      } else {
+        return {
+          success: false,
+          message: response.data?.message || 'Error al procesar peso'
+        }
+      }
+    } catch (error) {
+      console.error('Error en updatePesoAspectoPuesto:', error)
+      return {
+        success: false,
+        message: error.response?.data?.message || error.message || 'Error de conexión al procesar peso'
+      }
+    }
+  }
 }
 
 // Exportar cliente base para casos especiales

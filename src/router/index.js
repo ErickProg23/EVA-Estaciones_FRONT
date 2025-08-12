@@ -5,6 +5,9 @@ import UsersView from '../views/UsersView.vue'
 import StationsView from '../views/StationsView.vue'
 import PersonalView from '../views/PersonalView.vue'
 import PuestoView from '../views/PuestoView.vue'
+import AspectoView from '../views/AspectoView.vue'
+import EvaluationView from '@/views/EvaluationView.vue'
+import PesosPuestoView from '@/views/PesosPuestoView.vue'
 
 const routes = [
   {
@@ -45,6 +48,27 @@ const routes = [
     name: 'puesto',
     component: PuestoView,
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/administration/aspecto',
+    name: 'aspecto',
+    component: AspectoView,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/evaluation/new',
+    name: 'evaluationNew',
+    component: EvaluationView,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/pesos-puesto',
+    name: 'PesosPuesto',
+    component: PesosPuestoView,
+    meta: {
+      title: 'Configuración de Pesos por Puesto',
+      requiresAuth: true
+    }
   }
 ]
 

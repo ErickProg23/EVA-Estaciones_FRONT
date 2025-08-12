@@ -18,6 +18,13 @@ export const useNavigationStore = defineStore('navigation', () => {
       type: 'item'
     },
     {
+      title: 'Evaluación',
+      icon: 'mdi-account-group',
+      value: 'evaluation',
+      route: '/evaluation/new',
+      type: 'item'
+    },
+    {
       title: 'Administración',
       icon: 'mdi-cog',
       value: 'administration',
@@ -49,6 +56,13 @@ export const useNavigationStore = defineStore('navigation', () => {
           icon: 'mdi-account-supervisor',
           value: 'puesto',
           route: '/administration/puesto',
+          type: 'item'
+        },
+        {
+          title: 'Asepectos',
+          icon: 'mdi-format-list-bulleted',
+          value: 'aspecto',
+          route: '/administration/aspecto',
           type: 'item'
         }
       ]
