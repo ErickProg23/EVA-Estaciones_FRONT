@@ -216,23 +216,6 @@
                 </v-select>
               </v-col>
 
-              <!-- Reemplazar el v-select de tipo_evaluacion existente -->
-              <v-select
-                v-model="personalForm.tipo_evaluacion"
-                :items="tiposEvaluacion"
-                item-title="title"
-                item-value="value"
-                label="Tipo de Evaluación"
-                :rules="[rules.required]"
-                :disabled="isTipoEvaluacionDisabled"
-                :hint="isTipoEvaluacionDisabled ? 'Se asigna automáticamente según el puesto seleccionado' : ''"
-                persistent-hint
-                required
-              >
-                <template #append-inner v-if="isTipoEvaluacionDisabled">
-                  <v-icon color="primary">mdi-lock</v-icon>
-                </template>
-              </v-select>
               <v-col cols="12" md="6">
                 <v-switch
                   v-model="personalForm.activo"
@@ -329,10 +312,7 @@ const form = ref(null)
 const search = ref('')
 // Agregar después de la definición de personalForm
 const puestos = ref([])
-const tiposEvaluacion = ref([
-  { title: 'Operativo', value: '1' },
-  { title: 'Administrativo', value: '2' },
-])
+
 // Agregar después de las variables reactivas existentes (línea ~330)
 const isInitialLoading = ref(true)
 const loadingMessage = ref('Inicializando...')
@@ -351,57 +331,15 @@ const personalForm = ref({
   num_empleado: '',
   estacion_id: null,
   puesto_id: null,
-  tipo_evaluacion: null,
   activo: true
 })
 
-// Agregar después de la definición de tiposEvaluacion
-const puestoToTipoEvaluacion = {
-  // Puestos Administrativos (ID: 2)
-  'Auxiliar administrativo': '2',
-  'Cumplimientos': '2',
-  
-  // Puestos Operativos (ID: 1)
-  'Mantenimiento': '1',
-  'Despachador': '1',
-  'Caja': '1',
-  'Aseo': '1'
-}
-
-const tipoEvaluacion = {
-  '1': 'Operativo',
-  '2': 'Administrativo'
-}
-
-// Agregar después de las variables reactivas
-const isTipoEvaluacionDisabled = computed(() => {
-  if (!personalForm.value.puesto_id) return false
-  
-  const puestoSeleccionado = puestos.value.find(p => p.id === personalForm.value.puesto_id)
-  if (!puestoSeleccionado) return false
-  
-  return puestoToTipoEvaluacion.hasOwnProperty(puestoSeleccionado.nombre)
-})
 
 // Agregar después de las variables reactivas (línea ~330)
 const rules = {
   required: value => !!value || 'Este campo es requerido'
 }
 
-watch(() => personalForm.value.puesto_id, (newPuestoId) => {
-  if (!newPuestoId) {
-    personalForm.value.tipo_evaluacion = null
-    return
-  }
-  
-  const puestoSeleccionado = puestos.value.find(p => p.id === newPuestoId)
-  if (!puestoSeleccionado) return
-  
-  const tipoEvaluacionAuto = puestoToTipoEvaluacion[puestoSeleccionado.nombre]
-  if (tipoEvaluacionAuto) {
-    personalForm.value.tipo_evaluacion = tipoEvaluacionAuto
-  }
-})
 
 // Encabezados de la tabla
 const headers = [
@@ -420,10 +358,6 @@ const headers = [
   {
     title: 'Puesto',
     key: 'puesto'
-  },
-  {
-    title: 'Tipo evaluacion',
-    key: 'tipo_evaluacion'
   },
   {
     title: 'Estado',
@@ -631,7 +565,6 @@ const clearForm = () => {
     num_empleado: '',
     estacion_id: null,
     puesto_id: null,
-    tipo_evaluacion: null,
     activo: true
   }
 }
@@ -643,7 +576,6 @@ const editPersonal = (personalItem) => {
     num_empleado: personalItem.num_empleado || '',
     estacion_id: personalItem.estacion_id || null,
     puesto_id: personalItem.puesto_id || null,
-    tipo_evaluacion: personalItem.tipo_evaluacion || null,
     activo: personalItem.activo !== undefined ? personalItem.activo : true
   }
   showDialog.value = true

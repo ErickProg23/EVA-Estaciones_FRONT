@@ -410,8 +410,41 @@ export const aspectoService = {
         message: error.response?.data?.message || error.message || 'Error de conexión al procesar peso'
       }
     }
+  },
+
+  async getAspectosPorPuesto(puestoId) {
+    try {
+      const response = await apiClient.get(`/api/getAspectosPorPuestoEspecifico/${puestoId}`)
+      return {
+        success: true,
+        data: response.data
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Error al obtener aspectos del puesto'
+      }
+    }
   }
 }
+
+export const evaluacionService = {
+    async get_empleados_by_usuario_estacion(usuario_id){
+      try {
+        const response = await apiClient.get(`/api/getEmpleadosByUsuarioEstacion/${usuario_id}`)
+        return {
+          success: true,
+          data: response.data
+        }
+      } catch (error) {
+        return {
+          success: false,
+          message: error.response?.data?.message || 'Error al obtener empleados de la estación'
+        }
+      }
+    }
+
+  }
 
 // Exportar cliente base para casos especiales
 export default apiClient

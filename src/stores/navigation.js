@@ -59,7 +59,7 @@ export const useNavigationStore = defineStore('navigation', () => {
           type: 'item'
         },
         {
-          title: 'Asepectos',
+          title: 'Aspectos',
           icon: 'mdi-format-list-bulleted',
           value: 'aspecto',
           route: '/administration/aspecto',

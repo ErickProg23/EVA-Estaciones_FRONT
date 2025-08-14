@@ -8,8 +8,14 @@
       elevation="2"
       height="64"
     >
+      <!-- ✅ AGREGAR: Botón hamburguesa para controlar la barra lateral -->
+      <v-app-bar-nav-icon 
+        @click="navigationStore.toggleDrawer()"
+        color="green"
+      ></v-app-bar-nav-icon>
+      
       <v-app-bar-title class="text-green font-weight-bold">
-        Sistema EVA - Estaciones
+        EVA - Estaciones
       </v-app-bar-title>
       
       <v-spacer></v-spacer>
@@ -23,8 +29,11 @@
             size="large"
             class="mr-2"
           >
+            <!-- ✅ CAMBIAR: Avatar con iniciales -->
             <v-avatar color="green" size="40">
-              <v-icon color="white">mdi-account</v-icon>
+              <span class="text-white font-weight-bold text-h6">
+                {{ getUserInitials(currentUser?.nombre) }}
+              </span>
             </v-avatar>
           </v-btn>
         </template>
@@ -33,8 +42,11 @@
           <!-- Información del usuario -->
           <v-list-item>
             <template v-slot:prepend>
+              <!-- ✅ CAMBIAR: Avatar con iniciales -->
               <v-avatar color="green" size="32">
-                <v-icon color="white" size="20">mdi-account</v-icon>
+                <span class="text-white font-weight-bold text-body-2">
+                  {{ getUserInitials(currentUser?.nombre) }}
+                </span>
               </v-avatar>
             </template>
             <v-list-item-title class="font-weight-bold">
@@ -144,6 +156,19 @@ const isAuthenticated = computed(() => {
 // Función para actualizar el estado de autenticación
 const updateAuthState = () => {
   authState.value = sessionStorage.getItem('isAuthenticated') === 'true'
+}
+
+// ✅ NUEVA función para obtener iniciales
+const getUserInitials = (nombre) => {
+  if (!nombre) return 'U'
+  
+  const words = nombre.trim().split(' ')
+  if (words.length === 1) {
+    return words[0].charAt(0).toUpperCase()
+  }
+  
+  // Tomar primera letra del primer y último nombre
+  return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase()
 }
 
 // Cargar información del usuario actual
