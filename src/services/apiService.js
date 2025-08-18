@@ -442,9 +442,74 @@ export const evaluacionService = {
           message: error.response?.data?.message || 'Error al obtener empleados de la estación'
         }
       }
+    },
+    async get_empleados_by_usuario_estacion(usuario_id){
+    try {
+      const response = await apiClient.get(`/api/getEmpleadosByUsuarioEstacion/${usuario_id}`)
+      return {
+        success: true,
+        data: response.data
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Error al obtener empleados de la estación'
+      }
     }
+  },
 
+  // Nuevo: Guardar borrador de evaluación (auto-guardado)
+  async guardarBorrador(evaluacionData) {
+    try {
+      const response = await apiClient.post('/api/guardarBorradorEvaluacion', evaluacionData)
+      return {
+        success: response.data.success,
+        data: response.data,
+        message: response.data.message || 'Borrador guardado correctamente'
+      }
+    } catch (error) {
+      console.error('Error al guardar borrador:', error)
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Error al guardar borrador'
+      }
+    }
+  },
+
+  // Nuevo: Finalizar evaluación de puesto
+  async finalizarEvaluacionPuesto(evaluacionData) {
+    try {
+      const response = await apiClient.post('/api/finalizarEvaluacionPuesto', evaluacionData)
+      return {
+        success: response.data.success,
+        data: response.data,
+        message: response.data.message || 'Evaluación finalizada correctamente'
+      }
+    } catch (error) {
+      console.error('Error al finalizar evaluación:', error)
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Error al finalizar evaluación'
+      }
+    }
+  },
+
+  // Nuevo: Obtener evaluaciones guardadas (para cargar borradores)
+  async obtenerEvaluacionesPuesto(usuarioId, puestoId) {
+    try {
+      const response = await apiClient.get(`/api/getEvaluacionesPuesto/${usuarioId}/${puestoId}`)
+      return {
+        success: true,
+        data: response.data
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Error al obtener evaluaciones'
+      }
+    }
   }
+}
 
 // Exportar cliente base para casos especiales
 export default apiClient

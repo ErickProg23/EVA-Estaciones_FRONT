@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 export const useNavigationStore = defineStore('navigation', () => {
   // Estado reactivo
@@ -15,59 +15,79 @@ export const useNavigationStore = defineStore('navigation', () => {
       icon: 'mdi-view-dashboard',
       value: 'dashboard',
       route: '/dashboard',
-      type: 'item'
+      type: 'item',
+      allowedRoles: ['ADMIN', 'Encargado', 'Capital humano']
     },
     {
       title: 'Evaluación',
       icon: 'mdi-account-group',
       value: 'evaluation',
       route: '/evaluation/new',
-      type: 'item'
+      type: 'item',
+      allowedRoles: ['ADMIN', 'Encargado', 'Capital humano']
     },
     {
       title: 'Administración',
       icon: 'mdi-cog',
       value: 'administration',
       type: 'group',
+      allowedRoles: ['ADMIN', 'Capital humano'],
       children: [
         {
           title: 'Usuarios',
           icon: 'mdi-account-group',
           value: 'users',
           route: '/administration/users',
-          type: 'item'
+          type: 'item',
+          allowedRoles: ['ADMIN']
         },
         {
           title: 'Estaciones',
           icon: 'mdi-gas-station',
           value: 'stations',
           route: '/administration/stations',
-          type: 'item'
+          type: 'item',
+          allowedRoles: ['ADMIN', 'Capital humano']
         },
         {
           title: 'Personal',
           icon: 'mdi-account',
           value: 'personal',
           route: '/administration/personal',
-          type: 'item'
+          type: 'item',
+          allowedRoles: ['ADMIN', 'Capital humano']
         },
         {
           title: 'Puesto',
           icon: 'mdi-account-supervisor',
           value: 'puesto',
           route: '/administration/puesto',
-          type: 'item'
+          type: 'item',
+          allowedRoles: ['ADMIN', 'Capital humano']
         },
         {
           title: 'Aspectos',
           icon: 'mdi-format-list-bulleted',
           value: 'aspecto',
           route: '/administration/aspecto',
-          type: 'item'
+          type: 'item',
+          allowedRoles: ['ADMIN']
         }
       ]
     },
   ])
+
+  // Función para obtener el rol actual del usuario
+  const getCurrentUserRole = () => {
+    const rolId = sessionStorage.getItem('rol_id')
+    // Mapear rol_id a nombre de rol (ajusta según tu sistema)
+    const roleMap = {
+      '1': 'ADMIN',
+      '2': 'Capital humano', 
+      '3': 'Encargado'
+    }
+    return roleMap[rolId] || null
+  }
   
   // Acciones
   const toggleDrawer = () => {
@@ -94,6 +114,34 @@ export const useNavigationStore = defineStore('navigation', () => {
   const isGroupExpanded = (groupValue) => {
     return expandedGroups.value.includes(groupValue)
   }
+
+  // Función para verificar si el usuario tiene acceso a un item
+  const hasAccess = (item) => {
+    if (!item.allowedRoles) return true // Si no hay restricciones, permitir acceso
+    const userRole = getCurrentUserRole()
+    return userRole && item.allowedRoles.includes(userRole)
+  }
+
+  // Computed para obtener items filtrados por rol
+  const filteredMenuItems = computed(() => {
+    const filterItems = (items) => {
+      return items.filter(item => {
+        if (!hasAccess(item)) return false
+        
+        // Si es un grupo, filtrar también sus hijos
+        if (item.type === 'group' && item.children) {
+          const filteredChildren = filterItems(item.children)
+          // Solo mostrar el grupo si tiene hijos visibles
+          if (filteredChildren.length === 0) return false
+          item.children = filteredChildren
+        }
+        
+        return true
+      })
+    }
+    
+    return filterItems([...menuItems.value])
+  })
   
   // Getters
   const getCurrentModuleInfo = () => {
@@ -120,6 +168,8 @@ export const useNavigationStore = defineStore('navigation', () => {
     currentModule,
     expandedGroups,
     menuItems,
+    filteredMenuItems,
+
     
     // Acciones
     toggleDrawer,
@@ -127,6 +177,8 @@ export const useNavigationStore = defineStore('navigation', () => {
     setCurrentModule,
     toggleGroup,
     isGroupExpanded,
-    getCurrentModuleInfo
+    getCurrentModuleInfo,
+    hasAccess,
+    getCurrentUserRole
   }
 })

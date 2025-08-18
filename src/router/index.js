@@ -19,47 +19,48 @@ const routes = [
     path: '/dashboard',
     name: 'dashboard',
     component: DashboardView,
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Encargado', 'Capital humano'] }
   },
   {
     path: '/administration',
-    redirect: '/administration/users'
+    redirect: '/administration/users',
+    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Capital humano'] }
   },
   {
     path: '/administration/users',
     name: 'users',
     component: UsersView,
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, allowedRoles: ['ADMIN'] }
   },
   {
     path: '/administration/stations',
     name: 'stations',
     component: StationsView,
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Capital humano'] }
   },
   {
     path: '/administration/personal',
     name: 'personal',
     component: PersonalView,
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Capital humano'] }
   },
   {
     path: '/administration/puesto',
     name: 'puesto',
     component: PuestoView,
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Capital humano'] }
   },
   {
     path: '/administration/aspecto',
     name: 'aspecto',
     component: AspectoView,
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, allowedRoles: ['ADMIN'] }
   },
   {
     path: '/evaluation/new',
     name: 'evaluationNew',
     component: EvaluationView,
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Capital humano', 'Encargado'] }
   },
   {
     path: '/pesos-puesto',
@@ -67,7 +68,8 @@ const routes = [
     component: PesosPuestoView,
     meta: {
       title: 'Configuración de Pesos por Puesto',
-      requiresAuth: true
+      requiresAuth: true,
+      allowedRoles: ['ADMIN', 'Capital humano', 'Encargado']
     }
   }
 ]
@@ -77,17 +79,34 @@ const router = createRouter({
   routes
 })
 
+const hasRole = (allowedRoles) => {
+  const rolId = sessionStorage.getItem('rol_id')
+  const roleMap = {
+    '1': 'ADMIN',
+    '2': 'Capital humano', 
+    '3': 'Encargado'
+  }
+  const userRole = roleMap[rolId]
+  return userRole && allowedRoles.includes(userRole)
+}
+
 // Navigation guard
 router.beforeEach((to, from, next) => {
-  const isAuthenticated = sessionStorage.getItem('isAuthenticated')
+  const isAuthenticated = sessionStorage.getItem('isAuthenticated') === 'true'
   
   if (to.meta.requiresAuth && !isAuthenticated) {
     next('/')
-  } else if (to.name === 'login' && isAuthenticated) {
-    next('/dashboard')
-  } else {
-    next()
+    return
   }
+  
+  // Verificar roles si están definidos
+  if (to.meta.allowedRoles && !hasRole(to.meta.allowedRoles)) {
+    // Redirigir a dashboard si no tiene permisos
+    next('/dashboard')
+    return
+  }
+  
+  next()
 })
 
 export default router

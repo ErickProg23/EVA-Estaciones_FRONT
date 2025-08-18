@@ -8,7 +8,7 @@
   >
     <!-- Menú de navegación jerárquico -->
     <v-list density="compact" nav class="navigation-list">
-      <template v-for="item in navigationStore.menuItems" :key="item.value">
+      <template v-for="item in navigationStore.filteredMenuItems" :key="item.value">
         <!-- Items simples -->
         <v-list-item
           v-if="item.type === 'item'"
