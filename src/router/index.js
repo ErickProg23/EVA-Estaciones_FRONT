@@ -8,6 +8,7 @@ import PuestoView from '../views/PuestoView.vue'
 import AspectoView from '../views/AspectoView.vue'
 import EvaluationView from '@/views/EvaluationView.vue'
 import PesosPuestoView from '@/views/PesosPuestoView.vue'
+import TicketsView from '@/views/TicketsView.vue'
 
 const routes = [
   {
@@ -70,6 +71,16 @@ const routes = [
       title: 'Configuración de Pesos por Puesto',
       requiresAuth: true,
       allowedRoles: ['ADMIN', 'Capital humano', 'Encargado']
+    }
+  },
+  {
+    path: '/tickets',
+    name: 'tickets',
+    component: TicketsView,
+    meta: {
+      requiresAuth: true,
+      allowedRoles: ['ADMIN', 'Encargado'],
+      title: 'Gestion de tickets'
     }
   }
 ]

@@ -511,5 +511,211 @@ export const evaluacionService = {
   }
 }
 
+export const ticketService = {
+  // Obtener todos los tickets (solo para ADMIN)
+  getTickets: async () => {
+    try {
+      const response = await apiClient.get('/tickets')
+      return {
+        success: true,
+        data: response.data
+      }
+    } catch (error) {
+      console.error('Error al obtener tickets:', error)
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Error al obtener tickets'
+      }
+    }
+  },
+
+  // Obtener tickets por estación (para Encargado)
+  getTicketsByEstacion: async (estacionId) => {
+    try {
+      const response = await apiClient.get(`/tickets/estacion/${estacionId}`)
+      return {
+        success: true,
+        data: response.data
+      }
+    } catch (error) {
+      console.error('Error al obtener tickets por estación:', error)
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Error al obtener tickets por estación'
+      }
+    }
+  },
+
+  // Obtener tickets por usuario
+  getTicketsByUsuario: async (usuarioId) => {
+    try {
+      const response = await apiClient.get(`/tickets/usuario/${usuarioId}`)
+      return {
+        success: true,
+        data: response.data
+      }
+    } catch (error) {
+      console.error('Error al obtener tickets por usuario:', error)
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Error al obtener tickets por usuario'
+      }
+    }
+  },
+
+  // Crear nuevo ticket
+  createTicket: async (ticketData) => {
+    try {
+      const response = await apiClient.post('/tickets', ticketData)
+      return {
+        success: true,
+        data: response.data
+      }
+    } catch (error) {
+      console.error('Error al crear ticket:', error)
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Error al crear ticket'
+      }
+    }
+  },
+
+  // Obtener ticket por ID
+  getTicketById: async (ticketId) => {
+    try {
+      const response = await apiClient.get(`/tickets/${ticketId}`)
+      return {
+        success: true,
+        data: response.data
+      }
+    } catch (error) {
+      console.error('Error al obtener ticket:', error)
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Error al obtener ticket'
+      }
+    }
+  },
+
+  // Actualizar ticket
+  updateTicket: async (ticketId, ticketData) => {
+    try {
+      const response = await apiClient.put(`/tickets/${ticketId}`, ticketData)
+      return {
+        success: true,
+        data: response.data
+      }
+    } catch (error) {
+      console.error('Error al actualizar ticket:', error)
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Error al actualizar ticket'
+      }
+    }
+  },
+
+  // Actualizar estado del ticket
+  updateTicketStatus: async (ticketId, estado) => {
+    try {
+      const response = await apiClient.patch(`/tickets/${ticketId}/estado`, { estado })
+      return {
+        success: true,
+        data: response.data
+      }
+    } catch (error) {
+      console.error('Error al actualizar estado del ticket:', error)
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Error al actualizar estado del ticket'
+      }
+    }
+  },
+
+  // Asignar ticket a técnico (solo ADMIN)
+  assignTicket: async (ticketId, tecnicoId) => {
+    try {
+      const response = await apiClient.patch(`/tickets/${ticketId}/asignar`, { tecnico_id: tecnicoId })
+      return {
+        success: true,
+        data: response.data
+      }
+    } catch (error) {
+      console.error('Error al asignar ticket:', error)
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Error al asignar ticket'
+      }
+    }
+  },
+
+  // Agregar comentario al ticket
+  addComment: async (ticketId, comentario) => {
+    try {
+      const response = await apiClient.post(`/tickets/${ticketId}/comentarios`, { comentario })
+      return {
+        success: true,
+        data: response.data
+      }
+    } catch (error) {
+      console.error('Error al agregar comentario:', error)
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Error al agregar comentario'
+      }
+    }
+  },
+
+  // Obtener comentarios del ticket
+  getTicketComments: async (ticketId) => {
+    try {
+      const response = await apiClient.get(`/tickets/${ticketId}/comentarios`)
+      return {
+        success: true,
+        data: response.data
+      }
+    } catch (error) {
+      console.error('Error al obtener comentarios:', error)
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Error al obtener comentarios'
+      }
+    }
+  },
+
+  // Obtener estadísticas de tickets (para ADMIN)
+  getTicketStats: async () => {
+    try {
+      const response = await apiClient.get('/tickets/estadisticas')
+      return {
+        success: true,
+        data: response.data
+      }
+    } catch (error) {
+      console.error('Error al obtener estadísticas:', error)
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Error al obtener estadísticas'
+      }
+    }
+  },
+
+  // Eliminar ticket (solo ADMIN)
+  deleteTicket: async (ticketId) => {
+    try {
+      const response = await apiClient.delete(`/tickets/${ticketId}`)
+      return {
+        success: true,
+        data: response.data
+      }
+    } catch (error) {
+      console.error('Error al eliminar ticket:', error)
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Error al eliminar ticket'
+      }
+    }
+  }
+}
+
 // Exportar cliente base para casos especiales
 export default apiClient

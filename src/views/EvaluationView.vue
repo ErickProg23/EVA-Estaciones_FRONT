@@ -894,11 +894,6 @@ const cargarDatosCompletados = async (puesto) => {
 
 // Actualizar la función seleccionarPuesto para cargar borradores
 const seleccionarPuesto = async (puesto) => {
-
-  if (!verificarPeriodoEvaluacion()) {
-    return
-  }
-
   try {
     loadingMessage.value = 'Cargando información del puesto...'
     loading.value = true
@@ -931,14 +926,20 @@ const seleccionarPuesto = async (puesto) => {
       }
     })
     
-    // CAMBIO: Usar verificarEstadoPuesto en lugar de la lógica antigua
+    // CAMBIO: Verificar primero si el puesto está completado
     const estaCompletado = await verificarEstadoPuesto(puesto)
     
     if (estaCompletado) {
       console.log('🔒 Puesto en modo de solo lectura')
       showMessage('Este puesto ya fue completado - Solo lectura', 'info')
     } else {
-      // Si no está completado, cargar evaluaciones existentes normalmente
+      // Si no está completado, verificar período de evaluación
+      if (!verificarPeriodoEvaluacion(true)) {
+        showMessage('No puedes crear nuevas evaluaciones fuera del período válido', 'warning')
+        return
+      }
+      
+      // Cargar evaluaciones existentes normalmente
       await cargarEvaluacionesExistentes(puesto)
       console.log('✏️ Puesto en modo editable')
     }
@@ -1058,17 +1059,18 @@ const obtenerNombreMes = (mes) => {
   return meses[mes]
 }
 
-const verificarPeriodoEvaluacion = () => {
+const verificarPeriodoEvaluacion = (mostrarMensajes = true) => {
   const periodo = calcularPeriodoEvaluacion()
   
   if (!periodo.estaEnPeriodoGracia) {
-    if (periodo.diasRestantes < 0) {
-      showMessage('El período de evaluación ha expirado', 'warning')
-      return false
-    } else {
-      showMessage('Aún no es el período de evaluación', 'info')
-      return false
+    if (mostrarMensajes) {
+      if (periodo.diasRestantes < 0) {
+        showMessage('El período de evaluación ha expirado', 'warning')
+      } else {
+        showMessage('Aún no es el período de evaluación', 'info')
+      }
     }
+    return false
   }
   
   return true

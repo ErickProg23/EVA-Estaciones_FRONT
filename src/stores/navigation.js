@@ -27,6 +27,14 @@ export const useNavigationStore = defineStore('navigation', () => {
       allowedRoles: ['ADMIN', 'Encargado', 'Capital humano']
     },
     {
+      title: 'Tickets',
+      icon: 'mdi-ticket',
+      value: 'tickets',
+      route: '/tickets',
+      type: 'item',
+      allowedRoles: ['ADMIN', 'Encargado']
+    },
+    {
       title: 'Administración',
       icon: 'mdi-cog',
       value: 'administration',
