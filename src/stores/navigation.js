@@ -6,7 +6,8 @@ export const useNavigationStore = defineStore('navigation', () => {
   const drawer = ref(true)
   const rail = ref(false)
   const currentModule = ref('dashboard')
-  const expandedGroups = ref(['administration']) // Grupos expandidos por defecto
+  const expandedGroups = ref(['administration', 'reports']) // Grupos expandidos por defecto
+
   
   // Estructura jerárquica del menú
   const menuItems = ref([
@@ -33,6 +34,23 @@ export const useNavigationStore = defineStore('navigation', () => {
       route: '/tickets',
       type: 'item',
       allowedRoles: ['ADMIN', 'Encargado']
+    },
+    {
+      title: 'Reportes',
+      icon: 'mdi-chart-line',
+      value: 'reports',
+      type: 'group',
+      allowedRoles: ['ADMIN', 'Capital humano'],
+      children:[
+        {
+          title: 'Rendimiento',
+          icon: 'mdi-chart-line',
+          value: 'reports-stations',
+          route: '/reports/stations',
+          type: 'item',
+          allowedRoles: ['ADMIN', 'Capital humano'],
+        },
+      ]
     },
     {
       title: 'Administración',

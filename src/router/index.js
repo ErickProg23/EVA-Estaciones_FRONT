@@ -9,6 +9,7 @@ import AspectoView from '../views/AspectoView.vue'
 import EvaluationView from '@/views/EvaluationView.vue'
 import PesosPuestoView from '@/views/PesosPuestoView.vue'
 import TicketsView from '@/views/TicketsView.vue'
+import ReportsStationsView from '@/views/ReportsStationsView.vue'
 
 const routes = [
   {
@@ -21,6 +22,17 @@ const routes = [
     name: 'dashboard',
     component: DashboardView,
     meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Encargado', 'Capital humano'] }
+  },
+  {
+    path: '/reports',
+    redirect: '/reports/stations',
+    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Capital humano'] }
+  },
+  {
+    path: '/reports/stations',
+    name: 'reports-stations',
+    component: ReportsStationsView,
+    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Capital humano'] }
   },
   {
     path: '/administration',

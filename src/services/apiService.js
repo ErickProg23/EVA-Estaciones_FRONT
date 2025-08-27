@@ -717,5 +717,145 @@ export const ticketService = {
   }
 }
 
+export const reporteService = {
+  // Obtener reportes de estaciones con filtros
+  getReportesEstaciones: async (filtros = {}) => {
+    try {
+      const params = new URLSearchParams()
+      
+      if (filtros.año) params.append('año', filtros.año)
+      if (filtros.mes) params.append('mes', filtros.mes)
+      if (filtros.estacion_id) params.append('estacion_id', filtros.estacion_id)
+      if (filtros.puesto_id) params.append('puesto_id', filtros.puesto_id)
+      
+      const url = `/api/getReportesEstaciones${params.toString() ? '?' + params.toString() : ''}`
+      const response = await apiClient.get(url)
+      
+      console.log('Respuesta de reportes:', response.data)
+      
+      return {
+        success: true,
+        data: Array.isArray(response.data) ? response.data : response.data.reportes || [],
+        message: 'Reportes obtenidos correctamente'
+      }
+    } catch (error) {
+      console.error('Error en getReportesEstaciones:', error)
+      return {
+        success: false,
+        data: [],
+        message: error.response?.data?.message || error.message || 'Error de conexión'
+      }
+    }
+  },
+
+  // Obtener estadísticas generales de reportes
+  getEstadisticasReportes: async (filtros = {}) => {
+    try {
+      const params = new URLSearchParams()
+      
+      if (filtros.año) params.append('año', filtros.año)
+      if (filtros.mes) params.append('mes', filtros.mes)
+      
+      const url = `/api/getEstadisticasReportes${params.toString() ? '?' + params.toString() : ''}`
+      const response = await apiClient.get(url)
+      
+      return {
+        success: true,
+        data: response.data,
+        message: 'Estadísticas obtenidas correctamente'
+      }
+    } catch (error) {
+      console.error('Error en getEstadisticasReportes:', error)
+      return {
+        success: false,
+        data: {},
+        message: error.response?.data?.message || error.message || 'Error de conexión'
+      }
+    }
+  }
+}
+
+export const dashboardService = {
+  // Obtener métricas específicas de la estación del encargado
+  getMetricasEstacion: async (usuarioId) => {
+    try {
+      const response = await apiClient.get(`/api/getMetricasEstacion/${usuarioId}`)
+      return {
+        success: true,
+        data: response.data
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Error al obtener métricas de la estación'
+      }
+    }
+  },
+
+  // Obtener información completa de la estación
+  getInfoEstacion: async (usuarioId) => {
+    try {
+      const response = await apiClient.get(`/api/getInfoEstacion/${usuarioId}`)
+      return {
+        success: true,
+        data: response.data
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Error al obtener información de la estación'
+      }
+    }
+  },
+
+  // Obtener evaluaciones pendientes de la estación
+  getEvaluacionesPendientes: async (usuarioId) => {
+    try {
+      const response = await apiClient.get(`/api/getEvaluacionesPendientes/${usuarioId}`)
+      return {
+        success: true,
+        data: response.data
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Error al obtener evaluaciones pendientes'
+      }
+    }
+  },
+
+  // Obtener actividad reciente de la estación
+  getActividadReciente: async (usuarioId, limite = 10) => {
+    try {
+      const response = await apiClient.get(`/api/getActividadReciente/${usuarioId}?limite=${limite}`)
+      return {
+        success: true,
+        data: response.data
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Error al obtener actividad reciente'
+      }
+    }
+  },
+
+  // Obtener resumen de rendimiento de la estación
+  getRendimientoEstacion: async (usuarioId, periodo = 'mes') => {
+    try {
+      const response = await apiClient.get(`/api/getRendimientoEstacion/${usuarioId}?periodo=${periodo}`)
+      return {
+        success: true,
+        data: response.data
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Error al obtener rendimiento de la estación'
+      }
+    }
+  }
+}
+
 // Exportar cliente base para casos especiales
 export default apiClient
