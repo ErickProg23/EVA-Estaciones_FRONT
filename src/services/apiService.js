@@ -529,23 +529,6 @@ export const ticketService = {
     }
   },
 
-  // Obtener tickets por estación (para Encargado)
-  getTicketsByEstacion: async (estacionId) => {
-    try {
-      const response = await apiClient.get(`/tickets/estacion/${estacionId}`)
-      return {
-        success: true,
-        data: response.data
-      }
-    } catch (error) {
-      console.error('Error al obtener tickets por estación:', error)
-      return {
-        success: false,
-        error: error.response?.data?.message || 'Error al obtener tickets por estación'
-      }
-    }
-  },
-
   // Obtener tickets por usuario
   getTicketsByUsuario: async (usuarioId) => {
     try {

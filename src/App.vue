@@ -138,7 +138,7 @@ import { useNavigationStore } from '@/stores/navigation'
 
 const router = useRouter()
 const route = useRoute()
-const navigationStore = useNavigationStore()
+const navigationStore = useNavigationStore() // ✅ Ya existe
 const currentUser = ref(null)
 
 // ✅ NUEVAS variables para el diálogo de logout
@@ -171,7 +171,7 @@ const getUserInitials = (nombre) => {
   return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase()
 }
 
-// Cargar información del usuario actual
+// ✅ MODIFICAR: Cargar información del usuario actual
 const loadCurrentUser = () => {
   if (isAuthenticated.value) {
     const userData = sessionStorage.getItem('currentUser')
@@ -183,6 +183,9 @@ const loadCurrentUser = () => {
         rol: { nombre: 'Usuario' }
       }
     }
+    
+    // ✅ AGREGAR: Actualizar el rol en el store de navegación
+    navigationStore.updateUserRole()
   }
 }
 
@@ -222,7 +225,7 @@ const confirmLogout = async () => {
 // ✅ ELIMINAR la función logout antigua y reemplazar con:
 // const logout = () => { ... } // ← Eliminar esta función
 
-// Watchers
+// ✅ MODIFICAR: Watchers
 watch(() => route.path, () => {
   updateAuthState()
   loadCurrentUser()
@@ -233,19 +236,16 @@ watch(isAuthenticated, (newValue) => {
     loadCurrentUser()
   } else {
     currentUser.value = null
+    // ✅ AGREGAR: Limpiar el rol cuando se desautentica
+    navigationStore.updateUserRole()
   }
 })
 
-// Lifecycle
-onMounted(() => {
-  updateAuthState()
-  loadCurrentUser()
-})
-
-// Escuchar cambios en sessionStorage desde otras pestañas/ventanas
+// ✅ MODIFICAR: Escuchar cambios en sessionStorage
 window.addEventListener('storage', (e) => {
-  if (e.key === 'isAuthenticated') {
+  if (e.key === 'isAuthenticated' || e.key === 'rol_id') {
     updateAuthState()
+    loadCurrentUser() // Esto ya llama a updateUserRole()
   }
 })
 </script>

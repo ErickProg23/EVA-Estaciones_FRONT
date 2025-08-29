@@ -7,8 +7,10 @@ export const useNavigationStore = defineStore('navigation', () => {
   const rail = ref(false)
   const currentModule = ref('dashboard')
   const expandedGroups = ref(['administration', 'reports']) // Grupos expandidos por defecto
-
   
+  // ✅ AGREGAR: Variable reactiva para el rol del usuario
+  const currentUserRole = ref(null)
+
   // Estructura jerárquica del menú
   const menuItems = ref([
     {
@@ -104,6 +106,7 @@ export const useNavigationStore = defineStore('navigation', () => {
   ])
 
   // Función para obtener el rol actual del usuario
+  // ✅ MODIFICAR: Función para obtener y actualizar el rol actual del usuario
   const getCurrentUserRole = () => {
     const rolId = sessionStorage.getItem('rol_id')
     // Mapear rol_id a nombre de rol (ajusta según tu sistema)
@@ -112,7 +115,14 @@ export const useNavigationStore = defineStore('navigation', () => {
       '2': 'Capital humano', 
       '3': 'Encargado'
     }
-    return roleMap[rolId] || null
+    const role = roleMap[rolId] || null
+    currentUserRole.value = role // ✅ Actualizar la variable reactiva
+    return role
+  }
+  
+  // ✅ AGREGAR: Función para forzar actualización del rol
+  const updateUserRole = () => {
+    getCurrentUserRole()
   }
   
   // Acciones
@@ -141,15 +151,19 @@ export const useNavigationStore = defineStore('navigation', () => {
     return expandedGroups.value.includes(groupValue)
   }
 
-  // Función para verificar si el usuario tiene acceso a un item
+  // ✅ MODIFICAR: Función para verificar si el usuario tiene acceso a un item
   const hasAccess = (item) => {
     if (!item.allowedRoles) return true // Si no hay restricciones, permitir acceso
-    const userRole = getCurrentUserRole()
+    // ✅ CAMBIAR: Usar la variable reactiva en lugar de llamar la función
+    const userRole = currentUserRole.value || getCurrentUserRole()
     return userRole && item.allowedRoles.includes(userRole)
   }
 
-  // Computed para obtener items filtrados por rol
+  // ✅ MODIFICAR: Computed para obtener items filtrados por rol
   const filteredMenuItems = computed(() => {
+    // ✅ AGREGAR: Dependencia explícita de currentUserRole para forzar recálculo
+    const _ = currentUserRole.value
+    
     const filterItems = (items) => {
       return items.filter(item => {
         if (!hasAccess(item)) return false
@@ -195,6 +209,7 @@ export const useNavigationStore = defineStore('navigation', () => {
     expandedGroups,
     menuItems,
     filteredMenuItems,
+    currentUserRole, // ✅ AGREGAR
 
     
     // Acciones
@@ -205,6 +220,7 @@ export const useNavigationStore = defineStore('navigation', () => {
     isGroupExpanded,
     getCurrentModuleInfo,
     hasAccess,
-    getCurrentUserRole
+    getCurrentUserRole,
+    updateUserRole // ✅ AGREGAR
   }
 })
