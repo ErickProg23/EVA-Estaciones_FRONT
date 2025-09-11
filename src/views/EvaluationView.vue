@@ -66,7 +66,36 @@
       </v-alert>
 
   
-      <div v-if="!puestoSeleccionado">
+      <!-- Mensaje de todas las evaluaciones completas -->
+      <v-alert
+        v-if="todasLasEvaluacionesCompletas"
+        type="success"
+        icon="mdi-check-circle"
+        class="mb-4"
+        prominent
+      >
+        <v-row align="center">
+          <v-col>
+            <div class="text-h6">
+              ¡Evaluaciones Completadas!
+            </div>
+            <div class="text-body-1">
+              {{ mensajeCompletado }}
+            </div>
+            <div class="text-caption mt-1">
+              Podrás realizar nuevas evaluaciones en el próximo período de evaluación.
+            </div>
+          </v-col>
+          <v-col cols="auto">
+            <v-icon size="48" color="success">
+              mdi-trophy
+            </v-icon>
+          </v-col>
+        </v-row>
+      </v-alert>
+
+      <!-- Lista de puestos - Solo mostrar si no están todas las evaluaciones completas -->
+      <div v-if="!puestoSeleccionado && !todasLasEvaluacionesCompletas">
         <v-row>
           <v-col
             v-for="puesto in datosUsuario.puestos_con_empleados"
@@ -373,6 +402,10 @@ const loading = ref(true)
 const loadingMessage = ref('Cargando datos...')
 const guardando = ref(false)
 
+const todasLasEvaluacionesCompletas = ref(false)
+const mensajeCompletado = ref('')
+const mostrarMensajeExito = ref(false)
+
 // Datos principales
 const datosUsuario = ref({
   usuario: null,
@@ -426,6 +459,38 @@ const inicializarPeriodoEvaluacion = () => {
   }
 }
 
+const verificarTodasLasEvaluacionesCompletas = () => {
+  if (!datosUsuario.value.puestos_con_empleados || datosUsuario.value.puestos_con_empleados.length === 0) {
+    return false
+  }
+  
+  const totalPuestos = datosUsuario.value.puestos_con_empleados.length
+  const puestosCompletadosCount = puestosCompletados.value.size
+  
+  console.log('🔍 Verificando completitud:', {
+    totalPuestos,
+    puestosCompletadosCount,
+    puestosCompletados: Array.from(puestosCompletados.value)
+  })
+  
+  const todasCompletas = puestosCompletadosCount === totalPuestos
+  
+  if (todasCompletas && !todasLasEvaluacionesCompletas.value) {
+    todasLasEvaluacionesCompletas.value = true
+    mensajeCompletado.value = '¡Excelente! Has completado todas las evaluaciones del período actual. Todo en orden, vas al corriente.'
+    mostrarMensajeExito.value = true
+    
+    // Guardar estado en localStorage para persistir entre sesiones
+    const periodoActual = calcularPeriodoEvaluacion()
+    const claveCompletado = `evaluaciones_completas_${periodoActual.mesAEvaluar}_${periodoActual.añoAEvaluar}_${sessionStorage.getItem('usuario_id')}`
+    localStorage.setItem(claveCompletado, 'true')
+    
+    console.log('✅ Todas las evaluaciones completadas para el período actual')
+  }
+  
+  return todasCompletas
+}
+
 
 // Métodos
 const getInitials = (nombre) => {
@@ -448,68 +513,79 @@ const loadDatosEvaluacion = async () => {
   try {
     loadingMessage.value = 'Cargando empleados por estación...'
     
-    // Obtener usuario_id desde sessionStorage
     const usuarioId = sessionStorage.getItem('usuario_id')
-    if (!usuarioId) {
-      showMessage('No se encontró información del usuario', 'error')
-      return
-    }
-
     const result = await evaluacionService.get_empleados_by_usuario_estacion(usuarioId)
     
-    if (result.success && result.data.success) {
+    if (result.success) {
       datosUsuario.value = result.data
       
-      // Verificar qué puestos están completados
-      loadingMessage.value = 'Verificando estado de puestos...'
+      // Limpiar puestos completados antes de verificar
+      puestosCompletados.value.clear()
       
-      for (const puesto of result.data.puestos_con_empleados) {
+      const periodoActual = calcularPeriodoEvaluacion()
+      console.log('🗓️ Cargando datos para el período ESPECÍFICO:', {
+        mes: periodoActual.nombreMesAEvaluar,
+        año: periodoActual.añoAEvaluar,
+        mesNumerico: periodoActual.mesAEvaluar
+      })
+      
+      // Verificar cada puesto SOLO para el mes actual que se está evaluando
+      for (const puesto of datosUsuario.value.puestos_con_empleados) {
         try {
-          console.log(`🔍 Verificando puesto: ${puesto.puesto_nombre} (ID: ${puesto.puesto_id})`)
-          
           const evaluacionesResult = await evaluacionService.obtenerEvaluacionesPuesto(usuarioId, puesto.puesto_id)
           
-          console.log(`📦 Respuesta para puesto ${puesto.puesto_id}:`, evaluacionesResult)
-          
-          // CORRECCIÓN: Acceder a result.data.data en lugar de result.data
           if (evaluacionesResult.success && evaluacionesResult.data && evaluacionesResult.data.data) {
             const datosEvaluacion = evaluacionesResult.data.data
-            console.log(`📊 Datos de evaluación para puesto ${puesto.puesto_id}:`, datosEvaluacion)
             
-            // Verificar si hay empleados con evaluaciones
             if (datosEvaluacion.empleados && datosEvaluacion.empleados.length > 0) {
-              const tieneEvaluaciones = datosEvaluacion.empleados.some(empleado => {
-                const hasEvals = empleado.evaluaciones && empleado.evaluaciones.length > 0
-                console.log(`👤 Empleado ${empleado.empleado_nombre}: ${hasEvals ? 'Tiene evaluaciones' : 'Sin evaluaciones'}`)
-                return hasEvals
+              // Verificar si tiene evaluaciones ESPECÍFICAMENTE del mes que estamos evaluando
+              const tieneEvaluacionesDelMesActual = datosEvaluacion.empleados.some(empleado => {
+                if (!empleado.evaluaciones || empleado.evaluaciones.length === 0) return false
+                
+                return empleado.evaluaciones.some(evaluacion => {
+                  if (!evaluacion.fecha_evaluacion) return false
+                  
+                  // En lugar de buscar cuándo se hizo la evaluación,
+                  // buscar evaluaciones que evalúen el período actual
+                  
+                  // Opción 1: Si tienes campos de período en la evaluación
+                  // return evaluacion.mes_evaluado === periodoActual.mesAEvaluar && 
+                  //        evaluacion.año_evaluado === periodoActual.añoAEvaluar
+                  
+                  // Opción 2: Si las evaluaciones se hacen siempre en el mes siguiente
+                  // y quieres verificar que exista una evaluación para este período
+                  const fechaEval = new Date(evaluacion.fecha_evaluacion)
+                  const mesEvaluacion = fechaEval.getMonth() + 1
+                  const añoEvaluacion = fechaEval.getFullYear()
+                  
+                  // Verificar que la evaluación sea del mes actual (septiembre)
+                  // para el período que estamos evaluando (agosto)
+                  const fechaActual = new Date()
+                  const mesActual = fechaActual.getMonth() + 1
+                  const añoActual = fechaActual.getFullYear()
+                  
+                  return mesEvaluacion === mesActual && añoEvaluacion === añoActual
+                })
               })
               
-              if (tieneEvaluaciones) {
+              if (tieneEvaluacionesDelMesActual) {
                 puestosCompletados.value.add(puesto.puesto_id)
-                console.log(`✅ Puesto ${puesto.puesto_nombre} marcado como completado`)
+                console.log(`✅ Puesto ${puesto.puesto_nombre} YA EVALUADO para ${periodoActual.nombreMesAEvaluar} ${periodoActual.añoAEvaluar}`)
               } else {
-                console.log(`❌ Puesto ${puesto.puesto_nombre} sin evaluaciones completadas`)
+                console.log(`📝 Puesto ${puesto.puesto_nombre} PENDIENTE para ${periodoActual.nombreMesAEvaluar} ${periodoActual.añoAEvaluar}`)
               }
-            } else {
-              console.log(`❌ No hay empleados en el puesto ${puesto.puesto_nombre}`)
             }
-          } else {
-            console.log(`❌ No se pudieron obtener evaluaciones para puesto ${puesto.puesto_id}`)
-            console.log('📦 Estructura recibida:', evaluacionesResult)
           }
         } catch (error) {
-          console.error(`💥 Error al verificar puesto ${puesto.puesto_id}:`, error)
+          console.error(`💥 Error al verificar puesto ${puesto.puesto_nombre}:`, error)
         }
       }
-      
-      console.log('🏢 Puestos completados al cargar:', Array.from(puestosCompletados.value))
-      showMessage('Datos cargados correctamente', 'success')
     } else {
-      showMessage(result.message || 'Error al cargar datos', 'error')
+      showMessage('Error al cargar datos de evaluación', 'error')
     }
   } catch (error) {
     console.error('💥 Error al cargar datos:', error)
-    showMessage('Error de conexión', 'error')
+    showMessage('Error al cargar datos: ' + error.message, 'error')
   } finally {
     loading.value = false
   }
@@ -543,35 +619,86 @@ const evaluacionCompletada = ref(null)
 const verificarEstadoPuesto = async (puesto) => {
   try {
     const usuarioId = sessionStorage.getItem('usuario_id')
+    const periodoActual = calcularPeriodoEvaluacion()
     
-    // Primero intentar obtener las evaluaciones
+    console.log('🔍 DEPURACIÓN COMPLETA - Verificando estado del puesto:', {
+      puesto: puesto.puesto_nombre,
+      mesAEvaluar: periodoActual.mesAEvaluar,
+      añoAEvaluar: periodoActual.añoAEvaluar,
+      nombreMes: periodoActual.nombreMesAEvaluar,
+      fechaActual: new Date().toISOString(),
+      periodoCompleto: periodoActual
+    })
+    
+    // Obtener las evaluaciones del puesto
     const result = await evaluacionService.obtenerEvaluacionesPuesto(usuarioId, puesto.puesto_id)
     
-    console.log('🔍 Verificando estado del puesto:', result)
-    
     if (result.success && result.data && result.data.data && result.data.data.empleados) {
-      // Verificar si hay evaluaciones completadas (no borradores)
-      const tieneEvaluacionesCompletas = result.data.data.empleados.some(empleado => 
-        empleado.evaluaciones && empleado.evaluaciones.length > 0
-      )
+      console.log('📊 DATOS COMPLETOS DE EVALUACIONES:', {
+        totalEmpleados: result.data.data.empleados.length,
+        empleados: result.data.data.empleados.map(emp => ({
+          nombre: emp.empleado_nombre,
+          totalEvaluaciones: emp.evaluaciones ? emp.evaluaciones.length : 0,
+          evaluaciones: emp.evaluaciones ? emp.evaluaciones.map(evaluacion => ({
+            fecha: evaluacion.fecha_evaluacion,
+            fechaObj: new Date(evaluacion.fecha_evaluacion),
+            mes: new Date(evaluacion.fecha_evaluacion).getMonth() + 1,
+            año: new Date(evaluacion.fecha_evaluacion).getFullYear()
+          })) : []
+        }))
+      })
       
-      console.log('✅ Tiene evaluaciones completas:', tieneEvaluacionesCompletas)
+      // Verificar si hay evaluaciones completadas ESPECÍFICAMENTE PARA EL MES ACTUAL
+      const tieneEvaluacionesDelMesActual = result.data.data.empleados.some(empleado => {
+        if (!empleado.evaluaciones || empleado.evaluaciones.length === 0) {
+          console.log(`👤 ${empleado.empleado_nombre}: Sin evaluaciones`)
+          return false
+        }
+        
+        const evaluacionesDelPeriodo = empleado.evaluaciones.filter(evaluacion => {
+          if (!evaluacion.fecha_evaluacion) return false
+          
+          const fechaEval = new Date(evaluacion.fecha_evaluacion)
+          const mesEval = fechaEval.getMonth() + 1
+          const añoEval = fechaEval.getFullYear()
+          
+          const esDelPeriodoActual = mesEval === periodoActual.mesAEvaluar && añoEval === periodoActual.añoAEvaluar
+          
+          console.log(`📅 ${empleado.empleado_nombre} - Evaluación:`, {
+            fecha: evaluacion.fecha_evaluacion,
+            mesEvaluacion: mesEval,
+            añoEvaluacion: añoEval,
+            mesQueDebemosEvaluar: periodoActual.mesAEvaluar,
+            añoQueDebemosEvaluar: periodoActual.añoAEvaluar,
+            coincide: esDelPeriodoActual
+          })
+          
+          return esDelPeriodoActual
+        })
+        
+        console.log(`👤 ${empleado.empleado_nombre}: ${evaluacionesDelPeriodo.length} evaluaciones del período actual`)
+        return evaluacionesDelPeriodo.length > 0
+      })
       
-      if (tieneEvaluacionesCompletas) {
-        // Cargar datos en modo de solo lectura
-        await cargarDatosCompletados(puesto)
+      console.log('🎯 RESULTADO FINAL:', {
+        puesto: puesto.puesto_nombre,
+        tieneEvaluacionesDelMesActual,
+        seráMarcadoComoCompletado: tieneEvaluacionesDelMesActual
+      })
+      
+      if (tieneEvaluacionesDelMesActual) {
+        console.log(`🔒 MARCANDO COMO COMPLETADO: ${puesto.puesto_nombre} para ${periodoActual.nombreMesAEvaluar} ${periodoActual.añoAEvaluar}`)
+        puestosCompletados.value.add(puesto.puesto_id)
         return true
+      } else {
+        console.log(`✏️ MARCANDO COMO DISPONIBLE: ${puesto.puesto_nombre} para ${periodoActual.nombreMesAEvaluar} ${periodoActual.añoAEvaluar}`)
+        return false
       }
     }
     
-    // Si no hay evaluaciones completas, es editable
-    modoSoloLectura.value = false
-    fechaCompletado.value = null
-    evaluacionCompletada.value = null
     return false
-    
   } catch (error) {
-    console.error('Error al verificar estado del puesto:', error)
+    console.error('💥 Error al verificar estado del puesto:', error)
     return false
   }
 }
@@ -656,66 +783,63 @@ const guardarBorrador = async () => {
 
 // Función actualizada para finalizar puesto
 const finalizarPuesto = async () => {
+  if (!puedeEvaluar.value) {
+    showMessage('No puedes finalizar evaluaciones fuera del período válido', 'warning')
+    return
+  }
+  
+  guardando.value = true
+  
   try {
-    guardando.value = true
+    const periodoActual = calcularPeriodoEvaluacion()
+    const usuarioId = sessionStorage.getItem('usuario_id')
     
-    // NUEVA VALIDACIÓN: Verificar período de evaluación
-    if (!puedeEvaluar.value) {
-      showMessage(
-        `No se puede enviar la evaluación. ${periodoEvaluacion.value.mensaje}`, 
-        'error'
-      )
-      return
-    }
-    
-    // Validar que todos los empleados estén evaluados
-    const empleadosIncompletos = puestoSeleccionado.value.empleados.filter(empleado => {
-      const evalEmpleado = evaluaciones.value[empleado.id] || {}
-      return Object.keys(evalEmpleado).length < aspectos.value.length
-    })
-    
-    if (empleadosIncompletos.length > 0) {
-      showMessage(`Faltan evaluaciones para ${empleadosIncompletos.length} empleado(s)`, 'warning')
-      return
-    }
-    
-    // Preparar datos finales
+    // Preparar datos de evaluación con información del período
     const evaluacionData = {
-      usuario_id: sessionStorage.getItem('usuario_id'),
+      usuario_id: usuarioId,
       puesto_id: puestoSeleccionado.value.puesto_id,
-      evaluaciones: evaluaciones.value,
-      comentarios: comentarios.value,
-      vacaciones: vacaciones.value,
-      es_borrador: false, // Indicar que es la versión final
-      fecha_finalizacion: new Date().toISOString(),
-      // AGREGAR: Información del período de evaluación
-      periodo_evaluacion: {
-        mes: periodoEvaluacion.value.mesAEvaluar,
-        año: periodoEvaluacion.value.añoAEvaluar,
-        nombre_mes: periodoEvaluacion.value.nombreMesAEvaluar
-      }
+      mes_evaluacion: periodoActual.mesAEvaluar,
+      año_evaluacion: periodoActual.añoAEvaluar,
+      empleados: puestoSeleccionado.value.empleados.map(empleado => ({
+        empleado_id: empleado.id,
+        aspectos: Object.entries(evaluaciones.value[empleado.id] || {}).map(([aspectoId, calificacion]) => ({
+          aspecto_id: parseInt(aspectoId),
+          calificacion: calificacion
+        })),
+        comentario: comentarios.value[empleado.id] || '',
+        vacaciones: vacaciones.value[empleado.id] || {
+          estuvoDeVacaciones: false,
+          diasVacaciones: null
+        }
+      }))
     }
     
-    console.log('Finalizando evaluación del puesto...', evaluacionData)
+    console.log('💾 Finalizando evaluación con datos del período:', evaluacionData)
     
-    // Guardar evaluación final
     const result = await evaluacionService.finalizarEvaluacionPuesto(evaluacionData)
     
     if (result.success) {
-      // Marcar el puesto como completado
+      // Marcar puesto como completado
       puestosCompletados.value.add(puestoSeleccionado.value.puesto_id)
+      
+      // Verificar si todas las evaluaciones están completas
+      verificarTodasLasEvaluacionesCompletas()
       
       puestoCompletado.value = puestoSeleccionado.value
       showSuccessDialog.value = true
       
-      showMessage('Evaluación del puesto finalizada correctamente', 'success')
+      // Limpiar selección
+      puestoSeleccionado.value = null
+      empleadoActualIndex.value = 0
+      aspectos.value = []
+      
+      showMessage('Puesto evaluado exitosamente', 'success')
     } else {
       showMessage(result.message || 'Error al finalizar evaluación', 'error')
     }
-    
   } catch (error) {
-    console.error('Error al finalizar puesto:', error)
-    showMessage('Error al guardar evaluaciones', 'error')
+    console.error('💥 Error al finalizar puesto:', error)
+    showMessage('Error al finalizar evaluación: ' + error.message, 'error')
   } finally {
     guardando.value = false
   }
@@ -725,28 +849,26 @@ const finalizarPuesto = async () => {
 const cargarEvaluacionesExistentes = async (puesto) => {
   try {
     const usuarioId = sessionStorage.getItem('usuario_id')
-    console.log('🔍 Cargando evaluaciones para:', { usuarioId, puestoId: puesto.puesto_id })
+    const periodoActual = calcularPeriodoEvaluacion()
+    console.log('🔍 Cargando evaluaciones para el período:', {
+      mes: periodoActual.nombreMesAEvaluar,
+      año: periodoActual.añoAEvaluar,
+      usuarioId,
+      puestoId: puesto.puesto_id
+    })
     
     const result = await evaluacionService.obtenerEvaluacionesPuesto(usuarioId, puesto.puesto_id)
     
-    console.log('📦 Respuesta completa del servicio:', result)
-    
-    // CORRECCIÓN: Acceder a result.data.data
     if (result.success && result.data && result.data.data) {
       const datosEvaluacion = result.data.data
-      console.log('✅ Datos del servicio:', datosEvaluacion)
       
-      // Verificar si hay empleados en la respuesta
       if (datosEvaluacion.empleados && datosEvaluacion.empleados.length > 0) {
-        console.log('👥 Empleados encontrados:', datosEvaluacion.empleados.length)
+        let evaluacionesDelMesActual = false
         
-        // Procesar cada empleado
-        datosEvaluacion.empleados.forEach((empleadoData, index) => {
-          console.log(`👤 Procesando empleado ${index + 1}:`, empleadoData)
-          
+        datosEvaluacion.empleados.forEach(empleadoData => {
           const empleadoId = empleadoData.empleado_id
           
-          // Inicializar estructuras si no existen
+          // Inicializar estructuras
           if (!evaluaciones.value[empleadoId]) {
             evaluaciones.value[empleadoId] = {}
           }
@@ -760,50 +882,47 @@ const cargarEvaluacionesExistentes = async (puesto) => {
             }
           }
           
-          // Cargar evaluaciones si existen
+          // Filtrar evaluaciones del mes actual
           if (empleadoData.evaluaciones && empleadoData.evaluaciones.length > 0) {
-            console.log(`📊 Evaluaciones para empleado ${empleadoId}:`, empleadoData.evaluaciones)
-            
-            // Tomar la evaluación más reciente (primera en el array)
-            const evaluacionReciente = empleadoData.evaluaciones[0]
-            console.log('📈 Evaluación reciente:', evaluacionReciente)
-            
-            // Procesar aspectos de la evaluación
-            if (evaluacionReciente.aspectos && evaluacionReciente.aspectos.length > 0) {
-              console.log('🎯 Aspectos encontrados:', evaluacionReciente.aspectos)
+            const evaluacionesDelPeriodo = empleadoData.evaluaciones.filter(evaluacion => {
+              if (!evaluacion.fecha_evaluacion) return false
               
-              evaluacionReciente.aspectos.forEach(aspecto => {
-                evaluaciones.value[empleadoId][aspecto.aspecto_id] = aspecto.calificacion
-                console.log(`⭐ Aspecto ${aspecto.aspecto_id}: ${aspecto.calificacion}`)
-              })
-            }
+              const fechaEval = new Date(evaluacion.fecha_evaluacion)
+              const mesEval = fechaEval.getMonth() + 1
+              const añoEval = fechaEval.getFullYear()
+              
+              return mesEval === periodoActual.mesAEvaluar && añoEval === periodoActual.añoAEvaluar
+            })
             
-            // Cargar comentario
-            if (evaluacionReciente.comentario) {
-              comentarios.value[empleadoId] = evaluacionReciente.comentario
-              console.log('💬 Comentario cargado:', evaluacionReciente.comentario)
+            if (evaluacionesDelPeriodo.length > 0) {
+              evaluacionesDelMesActual = true
+              const evaluacionReciente = evaluacionesDelPeriodo[0]
+              
+              console.log('📈 Evaluación del mes actual encontrada:', evaluacionReciente)
+              
+              // Procesar aspectos de la evaluación
+              if (evaluacionReciente.aspectos && evaluacionReciente.aspectos.length > 0) {
+                evaluacionReciente.aspectos.forEach(aspecto => {
+                  evaluaciones.value[empleadoId][aspecto.aspecto_id] = aspecto.calificacion
+                })
+              }
+              
+              // Cargar comentario
+              if (evaluacionReciente.comentario) {
+                comentarios.value[empleadoId] = evaluacionReciente.comentario
+              }
             }
-            
-            // Marcar el puesto como completado si tiene evaluaciones
-            puestosCompletados.value.add(puesto.puesto_id)
-            console.log('✅ Puesto marcado como completado:', puesto.puesto_id)
-          } else {
-            console.log(`❌ No hay evaluaciones para empleado ${empleadoId}`)
           }
         })
         
-        console.log('📋 Estado final de evaluaciones:', evaluaciones.value)
-        console.log('💭 Estado final de comentarios:', comentarios.value)
-        console.log('🏢 Puestos completados:', Array.from(puestosCompletados.value))
-        
-        showMessage('Evaluaciones existentes cargadas correctamente', 'info')
-      } else {
-        console.log('❌ No se encontraron empleados en la respuesta')
-        console.log('📦 Estructura de datos recibida:', datosEvaluacion)
+        if (evaluacionesDelMesActual) {
+          // Solo marcar como completado si hay evaluaciones del mes actual
+          puestosCompletados.value.add(puesto.puesto_id)
+          console.log(`✅ Puesto ${puesto.puesto_nombre} tiene evaluaciones del mes actual`)
+        } else {
+          console.log(`ℹ️ Puesto ${puesto.puesto_nombre} no tiene evaluaciones del mes actual`)
+        }
       }
-    } else {
-      console.log('❌ No se encontraron evaluaciones existentes para este puesto')
-      console.log('📦 Respuesta del servicio:', result)
     }
   } catch (error) {
     console.error('💥 Error al cargar evaluaciones existentes:', error)
@@ -814,16 +933,16 @@ const cargarEvaluacionesExistentes = async (puesto) => {
 const cargarDatosCompletados = async (puesto) => {
   try {
     const usuarioId = sessionStorage.getItem('usuario_id')
+    const periodoActual = calcularPeriodoEvaluacion()
     const result = await evaluacionService.obtenerEvaluacionesPuesto(usuarioId, puesto.puesto_id)
     
-    // CORRECCIÓN: Acceder a result.data.data
     if (result.success && result.data && result.data.data) {
       const datosEvaluacion = result.data.data
       
       // Marcar como modo de solo lectura
       modoSoloLectura.value = true
       
-      // Procesar datos igual que en cargarEvaluacionesExistentes
+      // Procesar solo las evaluaciones del mes actual
       if (datosEvaluacion.empleados && datosEvaluacion.empleados.length > 0) {
         datosEvaluacion.empleados.forEach(empleadoData => {
           const empleadoId = empleadoData.empleado_id
@@ -842,44 +961,46 @@ const cargarDatosCompletados = async (puesto) => {
             }
           }
           
-          // Cargar datos de evaluación completada
+          // Filtrar y cargar solo las evaluaciones del mes actual
           if (empleadoData.evaluaciones && empleadoData.evaluaciones.length > 0) {
-            const evaluacionReciente = empleadoData.evaluaciones[0]
+            const evaluacionDelMesActual = empleadoData.evaluaciones.find(evaluacion => {
+              if (!evaluacion.fecha_evaluacion) return false
+              
+              const fechaEval = new Date(evaluacion.fecha_evaluacion)
+              const mesEval = fechaEval.getMonth() + 1
+              const añoEval = fechaEval.getFullYear()
+              
+              return mesEval === periodoActual.mesAEvaluar && añoEval === periodoActual.añoAEvaluar
+            })
             
-            // Cargar aspectos
-            if (evaluacionReciente.aspectos) {
-              evaluacionReciente.aspectos.forEach(aspecto => {
-                evaluaciones.value[empleadoId][aspecto.aspecto_id] = aspecto.calificacion
-              })
-            }
-            
-            // Cargar comentario
-            if (evaluacionReciente.comentario) {
-              comentarios.value[empleadoId] = evaluacionReciente.comentario
-            }
-            
-            // CORRECCIÓN: Establecer fecha de completado correctamente
-            if (evaluacionReciente.fecha_evaluacion) {
-              fechaCompletado.value = evaluacionReciente.fecha_evaluacion
-              console.log('📅 Fecha de completado establecida:', evaluacionReciente.fecha_evaluacion)
+            if (evaluacionDelMesActual) {
+              // Cargar aspectos
+              if (evaluacionDelMesActual.aspectos) {
+                evaluacionDelMesActual.aspectos.forEach(aspecto => {
+                  evaluaciones.value[empleadoId][aspecto.aspecto_id] = aspecto.calificacion
+                })
+              }
+              
+              // Cargar comentario
+              if (evaluacionDelMesActual.comentario) {
+                comentarios.value[empleadoId] = evaluacionDelMesActual.comentario
+              }
+              
+              // Establecer fecha de completado
+              if (evaluacionDelMesActual.fecha_evaluacion) {
+                fechaCompletado.value = evaluacionDelMesActual.fecha_evaluacion
+                console.log('📅 Fecha de completado establecida:', evaluacionDelMesActual.fecha_evaluacion)
+              }
             }
           }
         })
       }
       
-      // Guardar datos de estadísticas si están disponibles
-      if (datosEvaluacion.estadisticas) {
-        evaluacionCompletada.value = {
-          estadisticas: datosEvaluacion.estadisticas,
-          puesto: datosEvaluacion.puesto
-        }
-      }
-      
-      console.log('Datos completados cargados:', {
+      console.log('Datos del mes actual cargados:', {
+        periodo: `${periodoActual.nombreMesAEvaluar} ${periodoActual.añoAEvaluar}`,
         evaluaciones: evaluaciones.value,
         comentarios: comentarios.value,
-        fechaCompletado: fechaCompletado.value,
-        estadisticas: datosEvaluacion.estadisticas
+        fechaCompletado: fechaCompletado.value
       })
       
       return true
@@ -890,6 +1011,19 @@ const cargarDatosCompletados = async (puesto) => {
     console.error('Error al cargar datos completados:', error)
     return false
   }
+}
+
+const verificarPeriodoYaCompletado = () => {
+  const periodoActual = calcularPeriodoEvaluacion()
+  const claveCompletado = `evaluaciones_completas_${periodoActual.mesAEvaluar}_${periodoActual.añoAEvaluar}_${sessionStorage.getItem('usuario_id')}`
+  const yaCompletado = localStorage.getItem(claveCompletado) === 'true'
+  
+  if (yaCompletado) {
+    todasLasEvaluacionesCompletas.value = true
+    mensajeCompletado.value = 'Ya completaste todas las evaluaciones de este período. Espera al próximo período de evaluación.'
+  }
+  
+  return yaCompletado
 }
 
 // Actualizar la función seleccionarPuesto para cargar borradores
@@ -1025,6 +1159,13 @@ const calcularPeriodoEvaluacion = () => {
   const mesActual = ahora.getMonth() // 0-11
   const añoActual = ahora.getFullYear()
   
+  console.log('📅 CALCULANDO PERÍODO - Fecha actual:', {
+    fechaCompleta: ahora.toISOString(),
+    mesActualJS: mesActual, // 0-11
+    mesActualHumano: mesActual + 1, // 1-12
+    añoActual
+  })
+  
   // Calcular el mes anterior (mes a evaluar)
   let mesAEvaluar = mesActual - 1
   let añoAEvaluar = añoActual
@@ -1034,21 +1175,19 @@ const calcularPeriodoEvaluacion = () => {
     añoAEvaluar = añoActual - 1
   }
   
-  // Fecha de inicio del período de gracia (primer día del mes siguiente)
-  const inicioGracia = new Date(añoActual, mesActual, 1)
-  
-  // Fecha límite (2 semanas después del inicio del mes)
-  const fechaLimite = new Date(añoActual, mesActual, 15) // 14 días + 1
-  
-  return {
+  const resultado = {
     mesAEvaluar: mesAEvaluar + 1, // 1-12 para mostrar
     añoAEvaluar,
     nombreMesAEvaluar: obtenerNombreMes(mesAEvaluar),
-    inicioGracia,
-    fechaLimite,
-    estaEnPeriodoGracia: ahora >= inicioGracia && ahora <= fechaLimite,
-    diasRestantes: Math.ceil((fechaLimite - ahora) / (1000 * 60 * 60 * 24))
+    inicioGracia: new Date(añoActual, mesActual, 1),
+    fechaLimite: new Date(añoActual, mesActual, 15),
+    estaEnPeriodoGracia: ahora >= new Date(añoActual, mesActual, 1) && ahora <= new Date(añoActual, mesActual, 15),
+    diasRestantes: Math.ceil((new Date(añoActual, mesActual, 15) - ahora) / (1000 * 60 * 60 * 24))
   }
+  
+  console.log('📅 PERÍODO CALCULADO:', resultado)
+  
+  return resultado
 }
 
 const obtenerNombreMes = (mes) => {
