@@ -841,4 +841,27 @@ export const dashboardService = {
 }
 
 // Exportar cliente base para casos especiales
+export const productoService = {
+  // Obtener todos los productos
+  async getProductosByUsuarioEstacion(usuarioId) {
+    try {
+      const response = await apiClient.get(`/api/getProductosByUsuarioEstacion/${usuarioId}`)
+      const data = Array.isArray(response.data) ? response.data : response.data.productos || []
+      return { success: true, data, message: 'Productos de la estación obtenidos' }
+    } catch (error) {
+      console.error('Error en getProductosByUsuarioEstacion:', error)
+      return { success: false, data: [], message: error.response?.data?.message || error.message || 'Error de conexión' }
+    }
+  },
+
+  async updatePrecioProducto(productoId, precio, usuarioId) {
+    try {
+      const response = await apiClient.put(`/api/updatePrecioProducto/${productoId}`, { precio, usuario_id: usuarioId })
+      return { success: true, data: response.data, message: response.data?.message || 'Precio actualizado' }
+    } catch (error) {
+      console.error('Error en updatePrecioProducto:', error)
+      return { success: false, message: error.response?.data?.message || error.message || 'Error de conexión' }
+    }
+  }
+}
 export default apiClient

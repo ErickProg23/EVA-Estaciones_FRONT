@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 
 export const useNavigationStore = defineStore('navigation', () => {
   // Estado reactivo
-  const drawer = ref(true)
+  const drawer = ref(false)
   const rail = ref(false)
   const currentModule = ref('dashboard')
   const expandedGroups = ref(['administration', 'reports']) // Grupos expandidos por defecto
@@ -103,20 +103,36 @@ export const useNavigationStore = defineStore('navigation', () => {
         }
       ]
     },
+    {
+      title: 'Productos',
+      icon: 'mdi-oil',
+      value: 'productos',
+      route: '/productos',
+      type: 'item',
+      allowedRoles: ['ADMIN', 'Encargado']
+    },
+    {
+      title: 'Manuales',
+      icon: 'mdi-file-document',
+      value: 'manuales',
+      route: '/manuales/subir',
+      type: 'item',
+      allowedRoles: ['ADMIN', 'Mantenimiento']
+    },
   ])
 
   // Función para obtener el rol actual del usuario
   // ✅ MODIFICAR: Función para obtener y actualizar el rol actual del usuario
   const getCurrentUserRole = () => {
     const rolId = sessionStorage.getItem('rol_id')
-    // Mapear rol_id a nombre de rol (ajusta según tu sistema)
     const roleMap = {
       '1': 'ADMIN',
       '2': 'Capital humano', 
-      '3': 'Encargado'
+      '3': 'Encargado',
+      '4': 'Mantenimiento'
     }
     const role = roleMap[rolId] || null
-    currentUserRole.value = role // ✅ Actualizar la variable reactiva
+    currentUserRole.value = role
     return role
   }
   

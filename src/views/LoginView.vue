@@ -156,7 +156,12 @@ const handleLogin = async () => {
       }
       
       // Navegar inmediatamente sin setTimeout
-      await router.push('/dashboard')
+      const rolId = String(data.rol_id ?? sessionStorage.getItem('rol_id'))
+      if (rolId === '4') {
+        await router.push('/manuales/subir')
+      } else {
+        await router.push('/dashboard')
+      }
       
     } else {
       // Error del servidor

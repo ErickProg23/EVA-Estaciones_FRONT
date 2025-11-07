@@ -10,6 +10,11 @@ import EvaluationView from '@/views/EvaluationView.vue'
 import PesosPuestoView from '@/views/PesosPuestoView.vue'
 import TicketsView from '@/views/TicketsView.vue'
 import ReportsStationsView from '@/views/ReportsStationsView.vue'
+import EvaluacionProcesoView from '@/views/EvaluacionProcesoView.vue'
+import SubirManualView from '@/views/SubirManualView.vue'
+import ProductosView from '@/views/ProductosView.vue'
+
+
 
 const routes = [
   {
@@ -94,6 +99,24 @@ const routes = [
       allowedRoles: ['ADMIN', 'Encargado'],
       title: 'Gestion de tickets'
     }
+  },
+  {
+    path: '/evaluacion/proceso/:puestoNombre',
+    name: 'EvaluacionProceso',
+    component: EvaluacionProcesoView,
+    props: true
+  },
+  {
+    path: '/productos',
+    name: 'productos',
+    component: ProductosView,
+    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Encargado'] }
+  },
+  {
+    path: '/manuales/subir',
+    name: 'subirManual',
+    component: SubirManualView,
+    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Mantenimiento'] }
   }
 ]
 
@@ -107,7 +130,8 @@ const hasRole = (allowedRoles) => {
   const roleMap = {
     '1': 'ADMIN',
     '2': 'Capital humano', 
-    '3': 'Encargado'
+    '3': 'Encargado',
+    '4': 'Mantenimiento'
   }
   const userRole = roleMap[rolId]
   return userRole && allowedRoles.includes(userRole)

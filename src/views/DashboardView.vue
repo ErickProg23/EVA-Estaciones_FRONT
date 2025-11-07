@@ -122,7 +122,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, nextTick } from 'vue'
 import { Chart, registerables } from 'chart.js'
 import { evaluacionService, stationService, userService, dashboardService } from '@/services/apiService.js'
 
@@ -212,11 +212,14 @@ const fechaActual = computed(() => {
 // ===== METHODS =====
 const cargarDatos = async () => {
   try {
-    loadingMessage.value = 'Cargando métricas...'
-    loadingProgress.value = 25
+    isInitialLoading.value = true
+    loadingProgress.value = 0
+    loadingMessage.value = 'Iniciando carga...'
     
-    // Cargar datos según el rol del usuario
     const rolId = sessionStorage.getItem('rol_id')
+    
+    loadingProgress.value = 25
+    loadingMessage.value = 'Cargando datos del usuario...'
     
     if (rolId === '1') { // ADMIN
       await cargarDatosAdmin()
@@ -227,11 +230,20 @@ const cargarDatos = async () => {
     loadingProgress.value = 75
     loadingMessage.value = 'Finalizando...'
     
-    
     loadingProgress.value = 100
     
     setTimeout(() => {
       isInitialLoading.value = false
+      
+      // 🎯 CREAR GRÁFICOS DESPUÉS DE QUE EL LOADING TERMINE
+      setTimeout(() => {
+        if (window.datosRendimiento) {
+          console.log('🎨 Creando gráficos después del loading...')
+          crearGraficosEncargado(window.datosRendimiento)
+          delete window.datosRendimiento // Limpiar
+        }
+      }, 300) // Dar tiempo extra para que el DOM se renderice
+      
     }, 500)
     
   } catch (error) {
@@ -269,11 +281,28 @@ const cargarDatosEncargado = async () => {
       generarAlertas(pendientes) // Pasar todo el objeto de respuesta
     }
     
-    // Cargar datos para gráficos
+    // 🎯 GUARDAR LOS DATOS DE RENDIMIENTO PARA CREAR GRÁFICOS DESPUÉS
+    // Agregar esta variable reactiva
+    const datosRendimiento = ref(null)
+    
+    // En cargarDatosEncargado:
     const rendimiento = await dashboardService.getRendimientoEstacion(usuarioId)
     if (rendimiento.success) {
-      crearGraficosEncargado(rendimiento) // Pasar todo el objeto de respuesta
+      datosRendimiento.value = rendimiento
     }
+    
+    // En cargarDatos, después del loading:
+    setTimeout(() => {
+      isInitialLoading.value = false
+      
+      setTimeout(() => {
+        if (datosRendimiento.value) {
+          console.log('🎨 Creando gráficos después del loading...')
+          crearGraficosEncargado(datosRendimiento.value)
+        }
+      }, 300)
+      
+    }, 500)
     
   } catch (error) {
     console.error('Error al cargar datos del encargado:', error)
@@ -322,84 +351,208 @@ const generarAlertas = (responseData) => {
   console.log('Alertas generadas:', alertas.value)
 }
 
-const crearGraficosEncargado = (responseData) => {
-  console.log('Creando gráficos con:', responseData)
+const crearGraficosEncargado = async (responseData) => {
+  console.log('🎯 Creando gráficos con:', responseData)
   
-  const data = responseData.data || responseData
+  // CORRECCIÓN: Los datos están doblemente anidados
+  const data = responseData.data?.data || responseData.data || responseData
+  
+  // 🔍 DEBUG: Verificar estructura de datos
+  console.log('📊 Datos extraídos para gráficos:', {
+    tieneRendimientoPorPuesto: !!data.rendimientoPorPuesto,
+    rendimientoPorPuesto: data.rendimientoPorPuesto,
+    tienePromedioMensual: !!data.promedioMensual,
+    promedioMensual: data.promedioMensual
+  })
+  
+  // ⏳ ESPERAR MÚLTIPLES TICKS PARA ASEGURAR QUE EL DOM ESTÉ LISTO
+  await nextTick()
+  await new Promise(resolve => setTimeout(resolve, 100)) // Esperar 100ms adicionales
+  
+  // 🔍 VALIDACIÓN EXHAUSTIVA DE CANVAS
+  console.log('🎨 Estado de canvas:', {
+    lineChartRef: {
+      exists: !!lineChartRef.value,
+      type: typeof lineChartRef.value,
+      tagName: lineChartRef.value?.tagName,
+      hasGetContext: typeof lineChartRef.value?.getContext === 'function'
+    },
+    doughnutChartRef: {
+      exists: !!doughnutChartRef.value,
+      type: typeof doughnutChartRef.value,
+      tagName: doughnutChartRef.value?.tagName,
+      hasGetContext: typeof doughnutChartRef.value?.getContext === 'function'
+    }
+  })
   
   // Destruir gráficos existentes si existen
   if (lineChart) {
     lineChart.destroy()
+    lineChart = null
   }
   if (doughnutChart) {
     doughnutChart.destroy()
+    doughnutChart = null
   }
   
-  // Crear gráfico de líneas con datos reales
-  if (lineChartRef.value && data.promedioMensual) {
-    const labels = data.promedioMensual.map(item => {
-      const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
-      return meses[item.mes - 1] || `Mes ${item.mes}`
-    })
-    const valores = data.promedioMensual.map(item => item.promedio)
-    
-    lineChart = new Chart(lineChartRef.value, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Promedio Mensual',
-          data: valores,
-          borderColor: '#4CAF50',
-          backgroundColor: 'rgba(76, 175, 80, 0.1)',
-          tension: 0.4
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            labels: { color: '#ffffff' }
-          }
-        },
-        scales: {
-          x: {
-            ticks: { color: '#ffffff' },
-            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+  // ✅ CREAR GRÁFICO DE LÍNEAS CON VALIDACIÓN MEJORADA
+  if (lineChartRef.value && typeof lineChartRef.value.getContext === 'function' && data.promedioMensual && data.promedioMensual.length > 0) {
+    try {
+      const labels = data.promedioMensual.map(item => {
+        const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+        return meses[item.mes - 1] || `Mes ${item.mes}`
+      })
+      const valores = data.promedioMensual.map(item => item.promedio)
+      
+      console.log('📈 Creando gráfico de líneas con:', { labels, valores })
+      
+      const ctx = lineChartRef.value.getContext('2d')
+      if (ctx) {
+        lineChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Promedio Mensual',
+              data: valores,
+              borderColor: '#4CAF50',
+              backgroundColor: 'rgba(76, 175, 80, 0.1)',
+              tension: 0.4
+            }]
           },
-          y: {
-            ticks: { color: '#ffffff' },
-            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                labels: { color: '#ffffff' }
+              }
+            },
+            scales: {
+              x: {
+                ticks: { color: '#ffffff' },
+                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+              },
+              y: {
+                ticks: { color: '#ffffff' },
+                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+              }
+            }
           }
-        }
+        })
+        console.log('✅ Gráfico de líneas creado exitosamente')
       }
+    } catch (error) {
+      console.error('❌ Error creando gráfico de líneas:', error)
+    }
+  } else {
+    console.log('⚠️ No se puede crear gráfico de líneas:', {
+      canvas: !!lineChartRef.value,
+      hasGetContext: typeof lineChartRef.value?.getContext === 'function',
+      datos: data.promedioMensual?.length || 0
     })
   }
   
-  // Crear gráfico circular con rendimiento por puesto
-  if (doughnutChartRef.value && data.rendimientoPorPuesto) {
-    const labels = data.rendimientoPorPuesto.map(item => item.puesto)
-    const valores = data.rendimientoPorPuesto.map(item => item.empleados)
-    
-    doughnutChart = new Chart(doughnutChartRef.value, {
-      type: 'doughnut',
-      data: {
-        labels: labels,
-        datasets: [{
-          data: valores,
-          backgroundColor: ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#F44336']
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            labels: { color: '#ffffff' }
-          }
-        }
+  // ✅ CREAR GRÁFICO CIRCULAR CON VALIDACIÓN MEJORADA
+  if (doughnutChartRef.value && typeof doughnutChartRef.value.getContext === 'function') {
+    try {
+      const ctx = doughnutChartRef.value.getContext('2d')
+      if (!ctx) {
+        console.error('❌ No se pudo obtener el contexto 2D del canvas')
+        return
       }
+      
+      if (data.rendimientoPorPuesto && data.rendimientoPorPuesto.length > 0) {
+        const labels = data.rendimientoPorPuesto.map(item => item.puesto)
+        const valores = data.rendimientoPorPuesto.map(item => item.empleados)
+        
+        console.log('🍩 Creando gráfico circular con:', { labels, valores })
+        
+        doughnutChart = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: labels,
+            datasets: [{
+              data: valores,
+              backgroundColor: ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#F44336', '#00BCD4', '#795548'],
+              borderColor: '#1e1e1e',
+              borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: { 
+                  color: '#ffffff',
+                  padding: 20,
+                  usePointStyle: true,
+                  font: {
+                    size: 12
+                  }
+                }
+              },
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    const label = context.label || '';
+                    const value = context.parsed;
+                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                    const percentage = ((value / total) * 100).toFixed(1);
+                    return `${label}: ${value} empleados (${percentage}%)`;
+                  }
+                }
+              }
+            },
+            cutout: '60%',
+            animation: {
+              animateRotate: true,
+              duration: 1000
+            }
+          }
+        })
+        console.log('✅ Gráfico circular creado exitosamente')
+      } else {
+        console.log('⚠️ No hay datos de rendimiento, creando gráfico vacío')
+        
+        doughnutChart = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: ['Sin datos disponibles'],
+            datasets: [{
+              data: [1],
+              backgroundColor: ['#666666'],
+              borderColor: '#1e1e1e',
+              borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: { 
+                  color: '#ffffff',
+                  padding: 20
+                }
+              }
+            },
+            cutout: '60%'
+          }
+        })
+        console.log('✅ Gráfico vacío creado exitosamente')
+      }
+    } catch (error) {
+      console.error('❌ Error creando gráfico circular:', error)
+    }
+  } else {
+    console.log('⚠️ No se puede crear gráfico circular:', {
+      canvas: !!doughnutChartRef.value,
+      context: doughnutChartRef.value?.getContext ? 'OK' : 'NO',
+      tagName: doughnutChartRef.value?.tagName || 'undefined'
     })
   }
 }
