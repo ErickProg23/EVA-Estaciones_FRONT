@@ -100,6 +100,14 @@ export const useNavigationStore = defineStore('navigation', () => {
           route: '/administration/aspecto',
           type: 'item',
           allowedRoles: ['ADMIN']
+        },
+        {
+          title: 'Bombas',
+          icon: 'mdi-fuel',
+          value: 'bombas',
+          route: '/administration/bombas',
+          type: 'item',
+          allowedRoles: ['ADMIN', 'Mantenimiento']
         }
       ]
     },
@@ -119,6 +127,14 @@ export const useNavigationStore = defineStore('navigation', () => {
       type: 'item',
       allowedRoles: ['ADMIN', 'Mantenimiento']
     },
+    {
+      title: 'Lecturas Comparativas',
+      icon: 'mdi-clipboard-list',
+      value: 'lecturasComparativas',
+      route: '/manuales/comparativas',
+      type: 'item',
+      allowedRoles: ['ADMIN', 'Encargado']
+    }
   ])
 
   // Función para obtener el rol actual del usuario
@@ -169,34 +185,36 @@ export const useNavigationStore = defineStore('navigation', () => {
 
   // ✅ MODIFICAR: Función para verificar si el usuario tiene acceso a un item
   const hasAccess = (item) => {
-    if (!item.allowedRoles) return true // Si no hay restricciones, permitir acceso
-    // ✅ CAMBIAR: Usar la variable reactiva en lugar de llamar la función
-    const userRole = currentUserRole.value || getCurrentUserRole()
+    if (!item.allowedRoles) return true
+    const rolId = sessionStorage.getItem('rol_id')
+    const roleMap = {
+      '1': 'ADMIN',
+      '2': 'Capital humano',
+      '3': 'Encargado',
+      '4': 'Mantenimiento'
+    }
+    const userRole = currentUserRole.value ?? roleMap[rolId] ?? null
     return userRole && item.allowedRoles.includes(userRole)
   }
 
   // ✅ MODIFICAR: Computed para obtener items filtrados por rol
   const filteredMenuItems = computed(() => {
-    // ✅ AGREGAR: Dependencia explícita de currentUserRole para forzar recálculo
-    const _ = currentUserRole.value
-    
-    const filterItems = (items) => {
-      return items.filter(item => {
-        if (!hasAccess(item)) return false
-        
-        // Si es un grupo, filtrar también sus hijos
-        if (item.type === 'group' && item.children) {
-          const filteredChildren = filterItems(item.children)
-          // Solo mostrar el grupo si tiene hijos visibles
-          if (filteredChildren.length === 0) return false
-          item.children = filteredChildren
+    const _role = currentUserRole.value
+    const cloneAndFilter = (items) => {
+      const result = []
+      for (const item of items) {
+        if (!hasAccess(item)) continue
+        if (item.type === 'group' && Array.isArray(item.children)) {
+          const children = cloneAndFilter(item.children)
+          if (children.length === 0) continue
+          result.push({ ...item, children })
+        } else {
+          result.push({ ...item })
         }
-        
-        return true
-      })
+      }
+      return result
     }
-    
-    return filterItems([...menuItems.value])
+    return cloneAndFilter(menuItems.value)
   })
   
   // Getters

@@ -864,4 +864,53 @@ export const productoService = {
     }
   }
 }
+
+export const bombaService = {
+  async getBombas() {
+    try {
+      const response = await apiClient.get('/api/getBombas')
+      const data = Array.isArray(response.data) ? response.data : response.data.bombas || []
+      return { success: true, data, message: 'Bombas obtenidas correctamente' }
+    } catch (error) {
+      console.error('Error en getBombas:', error)
+      return { success: false, data: [], message: error.response?.data?.message || error.message || 'Error de conexión' }
+    }
+  },
+
+  async getBombasByUsuarioEstacion(usuarioId) {
+    try {
+      const response = await apiClient.get(`/api/getBombasByUsuarioEstacion/${usuarioId}`)
+      const data = Array.isArray(response.data) ? response.data : response.data.bombas || []
+      return { success: true, data, message: 'Bombas de la estación obtenidas' }
+    } catch (error) {
+      console.error('Error en getBombasByUsuarioEstacion:', error)
+      return { success: false, data: [], message: error.response?.data?.message || error.message || 'Error de conexión' }
+    }
+  },
+
+  async guardarLecturaManual(lecturaData) {
+    try {
+      const response = await apiClient.post('/api/guardarLecturaManual', lecturaData)
+      return { success: response.data?.success ?? true, data: response.data, message: response.data?.message || 'Lectura guardada correctamente' }
+    } catch (error) {
+      console.error('Error en guardarLecturaManual:', error)
+      return { success: false, data: null, message: error.response?.data?.message || error.message || 'Error de conexión' }
+    }
+  },
+
+  async getLecturasManualUltimas(estacionId, fecha, turno) {
+    try {
+      const params = new URLSearchParams()
+      if (fecha) params.append('fecha', fecha)
+      if (turno) params.append('turno', turno)
+      const url = `/api/getLecturasManualUltimas/${estacionId}${params.toString() ? '?' + params.toString() : ''}`
+      const response = await apiClient.get(url)
+      const data = Array.isArray(response.data) ? response.data : response.data.lecturas || []
+      return { success: true, data, message: 'Lecturas últimas obtenidas' }
+    } catch (error) {
+      console.error('Error en getLecturasManualUltimas:', error)
+      return { success: false, data: [], message: error.response?.data?.message || error.message || 'Error de conexión' }
+    }
+  }
+}
 export default apiClient

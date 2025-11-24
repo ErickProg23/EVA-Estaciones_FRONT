@@ -49,7 +49,7 @@
         <v-row>
           <v-col
             v-for="pump in currentPumps"
-            :key="pump.id"
+            :key="pump.numero_bomba"
             cols="12"
             sm="6"
           >
@@ -57,28 +57,22 @@
               <v-card-title class="py-2 text-body-2">{{ pumpLabel(pump) }}</v-card-title>
               <v-card-text>
                 <v-text-field
-                  :model-value="formatNumber(pumpStates[pump.id]?.inicio ?? 0)"
+                  :model-value="formatNumber(pumpStates[pumpKey(pump)]?.inicio ?? 0)"
                   label="Inicio (auto)"
                   variant="outlined"
                   density="comfortable"
                   readonly
                 />
                 <v-text-field
-                  v-model.number="pumpStates[pump.id].final"
+                  v-model.number="pumpStates[pumpKey(pump)].final"
                   type="number"
                   inputmode="decimal"
                   label="Final"
                   variant="outlined"
                   density="comfortable"
-                  :error-messages="getFinalError(pump.id)"
+                  :error-messages="getFinalError(pumpKey(pump))"
                 />
-                <v-text-field
-                  :model-value="formatNumber(getDiferencia(pump.id))"
-                  label="Diferencia"
-                  variant="outlined"
-                  density="comfortable"
-                  readonly
-                />
+
               </v-card-text>
               <v-card-actions>
                 <v-btn
@@ -128,6 +122,20 @@ const usuarioId = sessionStorage.getItem('usuario_id')
 
 const pumps = ref([])
 
+function normalizeProducto(prod) {
+  const id = typeof prod === 'object' && prod !== null ? Number(prod.id ?? NaN) : typeof prod === 'number' ? prod : NaN
+  const name = typeof prod === 'object' && prod !== null ? String(prod.nombre ?? '').toLowerCase() : typeof prod === 'string' ? prod.toLowerCase() : ''
+  if (!Number.isNaN(id)) {
+    if (id === 1) return 'Magna'
+    if (id === 2) return 'Premium'
+    if (id === 3) return 'Diesel'
+  }
+  if (name.includes('magna')) return 'Magna'
+  if (name.includes('premium')) return 'Premium'
+  if (name.includes('diesel')) return 'Diesel'
+  return 'Magna'
+}
+
 const pumpsByProduct = computed(() => {
   const group = { Magna: [], Premium: [], Diesel: [] }
   for (const p of pumps.value) {
@@ -135,7 +143,7 @@ const pumpsByProduct = computed(() => {
     if (group[prod]) group[prod].push(p)
   }
   for (const k of Object.keys(group)) {
-    group[k].sort((a, b) => Number(a.numero ?? 0) - Number(b.numero ?? 0))
+    group[k].sort((a, b) => Number(a.numero_bomba ?? 0) - Number(b.numero_bomba ?? 0))
   }
   return group
 })
@@ -144,13 +152,19 @@ const currentPumps = computed(() => pumpsByProduct.value[selectedProduct.value] 
 
 // Estado por bomba
 const pumpStates = reactive({})
-function ensurePumpState(id) {
-  if (!pumpStates[id]) pumpStates[id] = { inicio: 0, final: null }
+function ensurePumpState(key) {
+  if (!pumpStates[key]) pumpStates[key] = { inicio: 0, final: null }
+}
+
+function pumpKey(p) {
+  const productoId = Number(p?.producto?.id ?? p?.producto_id ?? NaN)
+  const estacionId = Number(p?.estacion_id ?? NaN)
+  return `${estacionId}:${productoId}:${p.numero_bomba}`
 }
 
 // Etiqueta de tarjeta
 function pumpLabel(p) {
-  return p.numero ? `Bomba ${p.numero}` : (p.nombre || p.id)
+  return p.numero_bomba ? `Bomba ${p.numero_bomba}` : (p.nombre || p.numero_bomba || p.id)
 }
 
 // Producto seleccionado para pestañas
@@ -162,8 +176,10 @@ function formatNumber(val) {
   return n.toFixed(2)
 }
 
-function keyLSPump(pumpId, fecha, turno) {
-  return `manual:pump:${pumpId}:${fecha}:${turno}`
+function keyLSPump(pump, fecha, turno) {
+  const productoId = Number(pump?.producto?.id ?? pump?.producto_id ?? NaN)
+  const estacionId = Number(pump?.estacion_id ?? NaN)
+  return `manual:pump:${estacionId}:${productoId}:${pump.numero_bomba}:${fecha}:${turno}`
 }
 
 function prevTurnoFecha(fecha, turno) {
@@ -174,66 +190,69 @@ function prevTurnoFecha(fecha, turno) {
   return { turno: 3, fecha: prevDate }
 }
 
-function cargarPrevLecturaPump(pumpId, fecha, turno) {
+function cargarPrevLecturaPump(pump, fecha, turno) {
   const { turno: prevTurno, fecha: prevFechaStr } = prevTurnoFecha(fecha, turno)
-  const raw = localStorage.getItem(keyLSPump(pumpId, prevFechaStr, prevTurno))
+  const raw = localStorage.getItem(keyLSPump(pump, prevFechaStr, prevTurno))
   if (!raw) return null
   try { return JSON.parse(raw) } catch { return null }
 }
 
-function recalcularInicioPump(pumpId) {
-  ensurePumpState(pumpId)
-  const prev = cargarPrevLecturaPump(pumpId, fechaSeleccionada.value, turnoSeleccionado.value)
-  pumpStates[pumpId].inicio = prev?.final ?? 0
+function recalcularInicioPump(pump) {
+  const key = pumpKey(pump)
+  ensurePumpState(key)
+  const prev = cargarPrevLecturaPump(pump, fechaSeleccionada.value, turnoSeleccionado.value)
+  pumpStates[key].inicio = prev?.final ?? 0
 }
 
 function recalcularInicioAll() {
   pumps.value.forEach(p => {
-    ensurePumpState(p.id)
-    recalcularInicioPump(p.id)
+    ensurePumpState(pumpKey(p))
+    recalcularInicioPump(p)
   })
 }
 
-function getFinalError(pumpId) {
-  ensurePumpState(pumpId)
-  const val = pumpStates[pumpId].final
+function getFinalError(pumpNumero) {
+  ensurePumpState(pumpNumero)
+  const val = pumpStates[pumpNumero].final
   if (val == null || val === '') return []
   const n = Number(val)
   if (Number.isNaN(n)) return ['Debe ser un número']
-  if (n < pumpStates[pumpId].inicio) return ['El final no puede ser menor que el inicio']
+  if (n < pumpStates[pumpNumero].inicio) return ['El final no puede ser menor que el inicio']
   return []
 }
 
-function getDiferencia(pumpId) {
-  ensurePumpState(pumpId)
-  const n = Number(pumpStates[pumpId].final ?? 0)
-  if (Number.isNaN(n)) return 0
-  return Math.max(n - pumpStates[pumpId].inicio, 0)
-}
+
 
 async function guardarLecturaPump(pump) {
-  ensurePumpState(pump.id)
+  ensurePumpState(pumpKey(pump))
   mensaje.value.text = ''
-  const errors = getFinalError(pump.id)
+  const errors = getFinalError(pumpKey(pump))
   if (errors.length) {
     mensaje.value = { text: errors[0], type: 'error', icon: 'mdi-alert-circle' }
     return
   }
   guardando.value = true
   try {
-    const data = {
-      pumpId: pump.id,
-      producto: normalizeProducto(pump.producto),
+    const base = {
+      lectura: Number(pumpStates[pumpKey(pump)].final),
       fecha: fechaSeleccionada.value,
       turno: turnoSeleccionado.value,
-      inicio: pumpStates[pump.id].inicio,
-      final: Number(pumpStates[pump.id].final),
-      diferencia: getDiferencia(pump.id),
-      savedAt: new Date().toISOString()
+      estacion_id: pump.estacion_id,
+      numero_bomba: pump.numero_bomba
     }
-    localStorage.setItem(keyLSPump(pump.id, data.fecha, data.turno), JSON.stringify(data))
-    mensaje.value = { text: `Lectura guardada: ${pump.nombre}`, type: 'success', icon: 'mdi-check-circle' }
-    recalcularInicioPump(pump.id)
+    const producto_id = Number(pump?.producto?.id ?? pump?.producto_id)
+    let res = await bombaService.guardarLecturaManual({ ...base, producto_id })
+    const errTxt = String(res?.data?.error || res?.message || '')
+    if (!res.success && (errTxt.includes('producto_id') || errTxt.includes('unexpected'))) {
+      res = await bombaService.guardarLecturaManual({ ...base, producto: normalizeProducto(pump.producto) })
+    }
+    if (res.success) {
+      localStorage.setItem(keyLSPump(pump, base.fecha, base.turno), JSON.stringify({ ...base, producto_id }))
+      mensaje.value = { text: `Lectura guardada`, type: 'success', icon: 'mdi-check-circle' }
+      recalcularInicioPump(pump)
+    } else {
+      mensaje.value = { text: res.message || 'Error al guardar la lectura', type: 'error', icon: 'mdi-alert-circle' }
+    }
   } catch (err) {
     console.error(err)
     mensaje.value = { text: 'Error al guardar la lectura', type: 'error', icon: 'mdi-alert-circle' }
@@ -247,7 +266,7 @@ async function loadBombas() {
     const res = await bombaService.getBombasByUsuarioEstacion(usuarioId)
     if (res.success) {
       pumps.value = Array.isArray(res.data) ? res.data : []
-      pumps.value.forEach(p => ensurePumpState(p.id))
+      pumps.value.forEach(p => ensurePumpState(pumpKey(p)))
       recalcularInicioAll()
     } else {
       pumps.value = []
@@ -263,7 +282,7 @@ watch([fechaSeleccionada, turnoSeleccionado], () => {
 })
 
 watch(selectedProduct, () => {
-  currentPumps.value.forEach(p => ensurePumpState(p.id))
+  currentPumps.value.forEach(p => ensurePumpState(pumpKey(p)))
   recalcularInicioAll()
 })
 

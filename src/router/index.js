@@ -13,6 +13,8 @@ import ReportsStationsView from '@/views/ReportsStationsView.vue'
 import EvaluacionProcesoView from '@/views/EvaluacionProcesoView.vue'
 import SubirManualView from '@/views/SubirManualView.vue'
 import ProductosView from '@/views/ProductosView.vue'
+import BombasView from '@/views/BombasView.vue'
+import LecturasComparativasView from '@/views/LecturasComparativasView.vue'
 
 
 
@@ -49,6 +51,12 @@ const routes = [
     name: 'users',
     component: UsersView,
     meta: { requiresAuth: true, allowedRoles: ['ADMIN'] }
+  },
+  {
+    path: '/administration/bombas',
+    name: 'bombas',
+    component: BombasView,
+    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Mantenimiento'] }
   },
   {
     path: '/administration/stations',
@@ -117,6 +125,12 @@ const routes = [
     name: 'subirManual',
     component: SubirManualView,
     meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Mantenimiento'] }
+  },
+  {
+    path: '/manuales/comparativas',
+    name: 'lecturasComparativas',
+    component: LecturasComparativasView,
+    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Encargado'] }
   }
 ]
 

@@ -13,9 +13,38 @@
       </v-chip>
     </div>
 
+    <!-- Diálogo de mensajes (reemplaza el v-alert superior) -->
+    <v-dialog v-model="dialogOpen" max-width="520">
+      <v-card :color="dialogColor" dark>
+        <v-card-title class="text-h6">{{ dialogTitle }}</v-card-title>
+        <v-card-text>{{ mensaje }}</v-card-text>
+        <v-card-actions class="justify-end">
+          <v-btn
+            v-if="dialogShouldNavigate"
+            color="white"
+            variant="text"
+            @click="onDialogAccept"
+          >
+            Aceptar
+          </v-btn>
+          <v-btn
+            v-else
+            color="white"
+            variant="text"
+            @click="dialogOpen = false"
+          >
+            Cerrar
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+  </v-dialog>
+
+    <!-- Se elimina el v-alert para no duplicar mensajes -->
+    <!--
     <v-alert v-if="mensaje" :type="mensajeTipo" variant="tonal" class="mb-4" dark>
       {{ mensaje }}
     </v-alert>
+    -->
 
     <v-card color="#2d2d2d" dark>
       <v-card-text>
@@ -159,10 +188,11 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { evaluacionService, aspectoService, puestoService } from '@/services/apiService'  // ← Agregar estos servicios
 
 const route = useRoute()
+const router = useRouter()
 const puestoNombre = route.params.puestoNombre
 
 const empleados = ref([])
@@ -182,6 +212,28 @@ const comentarios = ref('') // ← nuevo
 
 const aspectosBase = ref([])        // catálogo base del puesto
 const evaluacionesPorEmpleado = ref({}) // cache: { [empleadoId]: { aspectos, comentarios, completado } }
+
+// Estados del diálogo y función para abrirlo
+const dialogOpen = ref(false)
+const dialogTitle = ref('')
+const dialogShouldNavigate = ref(false)
+const dialogColor = ref('blue')
+
+const openDialog = (tipo, titulo, texto, options = {}) => {
+  mensajeTipo.value = tipo
+  mensaje.value = texto
+  dialogTitle.value = titulo || (tipo === 'success' ? 'Proceso exitoso' : 'Ocurrió un error')
+  dialogColor.value = tipo === 'success' ? 'green' : tipo === 'error' ? 'red' : 'blue'
+  dialogShouldNavigate.value = !!options.navigateOnAccept && tipo === 'success'
+  dialogOpen.value = true
+}
+
+const onDialogAccept = () => {
+  dialogOpen.value = false
+  if (dialogShouldNavigate.value) {
+    router.push({ name: 'evaluationNew' })
+  }
+}
 
 const todasCalificadas = computed(() => {
   if (!empleadoActual.value || aspectos.value.length === 0) return false
@@ -375,16 +427,18 @@ const evaluarTodo = async () => {
     }
 
     if (errores.length > 0) {
-      mensaje.value = `Algunas evaluaciones fallaron: ${errores.join('; ')}`
-      mensajeTipo.value = 'error'
+      openDialog('error', 'Evaluación con errores', `Algunas evaluaciones fallaron: ${errores.join('; ')}`)
     } else {
-      mensaje.value = 'Todas las evaluaciones fueron registradas correctamente.'
-      mensajeTipo.value = 'success'
+      openDialog(
+        'success',
+        'Evaluación completada',
+        'Todas las evaluaciones fueron registradas correctamente.',
+        { navigateOnAccept: true }
+      )
     }
   } catch (err) {
     console.error('Error en evaluarTodo:', err)
-    mensaje.value = err.message || 'Ocurrió un error al enviar las evaluaciones'
-    mensajeTipo.value = 'error'
+    openDialog('error', 'Error al enviar evaluaciones', err.message || 'Ocurrió un error al enviar las evaluaciones')
   } finally {
     isSaving.value = false
   }

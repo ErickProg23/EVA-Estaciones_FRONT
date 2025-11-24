@@ -36,8 +36,12 @@
         sm="6"
         md="4"
       >
-        <v-card class="pa-4" hover @click="seleccionarPuesto(p)">
-          <div class="text-h6">{{ p.nombre }}</div>
+        <!-- Si está evaluado o está cargando/verificando, bloqueo el click -->
+        <v-card class="pa-4" hover @click="!p.evaluado && !isLoading && seleccionarPuesto(p)">
+          <div class="d-flex align-center justify-space-between">
+            <div class="text-h6">{{ p.nombre }}</div>
+            <v-chip v-if="p.evaluado" color="green" variant="tonal" size="small">Evaluado</v-chip>
+          </div>
           <div class="text-caption text-grey">Empleados: {{ p.cantidad }}</div>
         </v-card>
       </v-col>
@@ -117,17 +121,84 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { evaluacionService } from '@/services/apiService'
+import { evaluacionService, puestoService, reporteService } from '@/services/apiService'
 
 
 const isLoading = ref(false)
 const mensaje = ref('')
 const mensajeTipo = ref('info')
 
-const puestos = ref([]) // { nombre: string, cantidad: number }[]
+const puestos = ref([]) // { nombre: string, cantidad: number, evaluado?: boolean }[]
 const puestoSeleccionado = ref(null)
 const empleadosPorPuesto = ref([]) // empleados del puesto seleccionado
 const mapaPuestoEmpleados = ref({}) // { [puesto_nombre]: Empleado[] }
+
+// NUEVO: mapa nombre→id y estado de evaluado por puesto
+const mapPuestoNombreToId = ref({}) // { [nombreLower]: id }
+const puestosEvaluados = ref({})     // { [nombre]: boolean }
+
+// Helper para obtener estación y fecha actual
+const estacionIdSesion = () =>
+  sessionStorage.getItem('estacion_id') ||
+  sessionStorage.getItem('estacionId') ||
+  sessionStorage.getItem('station_id')
+
+const mesActual = () => new Date().getMonth() + 1
+const añoActual = () => new Date().getFullYear()
+
+// Cargar catálogo de puestos para resolver nombre→id
+const cargarMapaPuestos = async () => {
+  const res = await puestoService.getPuestos()
+  if (res.success) {
+    const map = {}
+    for (const p of res.puestos || []) {
+      map[String(p.nombre).toLowerCase()] = p.id
+    }
+    mapPuestoNombreToId.value = map
+  }
+}
+
+// Marcar qué puestos ya tienen evaluación este mes en la estación
+const marcarPuestosEvaluados = async () => {
+  const estacionId = estacionIdSesion()
+  if (!estacionId || puestos.value.length === 0) return
+
+  const m = mesActual()
+  const y = añoActual()
+  const evaluadoPorNombre = {}
+
+  for (const p of puestos.value) {
+    const puestoId = mapPuestoNombreToId.value[String(p.nombre).toLowerCase()]
+    if (!puestoId) {
+      evaluadoPorNombre[p.nombre] = false
+      continue
+    }
+
+    const resRep = await reporteService.getReportesEstaciones({
+      estacion_id: estacionId,
+      puesto_id: puestoId,
+      mes: m,
+      año: y
+    })
+
+    // Filtrar con seguridad por puesto y por mes/año actual
+    let registros = Array.isArray(resRep.data) ? resRep.data : []
+    registros = registros.filter(item => {
+      const okPuesto = String(item.puesto_id) === String(puestoId)
+      // fecha_evaluacion suele venir; si no, intenta con item.mes/item.año si existen
+      const d = item.fecha_evaluacion ? new Date(item.fecha_evaluacion) : null
+      const itemMes = d ? (d.getMonth() + 1) : (Number(item.mes) || null)
+      const itemAnio = d ? d.getFullYear() : (Number(item.año) || null)
+      const okFecha = itemMes === m && itemAnio === y
+      return okPuesto && okFecha
+    })
+
+    evaluadoPorNombre[p.nombre] = registros.length > 0
+  }
+
+  puestosEvaluados.value = evaluadoPorNombre
+  puestos.value = puestos.value.map(item => ({ ...item, evaluado: !!evaluadoPorNombre[item.nombre] }))
+}
 
 const headersEmpleados = [
   { title: 'Nombre', key: 'nombre' },
@@ -179,6 +250,11 @@ const cargarPuestos = async () => {
         mensaje.value = `Se cargaron ${puestos.value.length} puestos.`
         mensajeTipo.value = 'success'
       }
+
+      // NUEVO: marcar puestos evaluados este mes
+      await cargarMapaPuestos()
+      await marcarPuestosEvaluados()
+
     } catch (err) {
       console.error('Error al cargar puestos:', err)
       mensaje.value = 'Ocurrió un error al cargar los puestos.'
@@ -203,11 +279,51 @@ const empleadoActual = computed(() => empleadosPorPuesto.value[empleadoIndex.val
 
 const router = useRouter()
 
-const seleccionarPuesto = (puesto) => {
-  router.push({
-    name: 'EvaluacionProceso',
-    params: { puestoNombre: puesto.nombre }
+const seleccionarPuesto = async (puesto) => {
+  if (isLoading.value) {
+    mensaje.value = 'Verificando evaluaciones, espera un momento.'
+    mensajeTipo.value = 'info'
+    return
+  }
+  if (puesto.evaluado) {
+    mensaje.value = `Ya existe una evaluación de ${puesto.nombre} para este mes.`
+    mensajeTipo.value = 'info'
+    return
+  }
+  const estacionId = estacionIdSesion()
+  const m = mesActual()
+  const y = añoActual()
+  let puestoId = mapPuestoNombreToId.value[String(puesto.nombre).toLowerCase()]
+  if (!puestoId) {
+    await cargarMapaPuestos()
+    puestoId = mapPuestoNombreToId.value[String(puesto.nombre).toLowerCase()]
+  }
+  if (!estacionId || !puestoId) {
+    mensaje.value = 'No se pudo validar el estado del puesto. Intenta de nuevo.'
+    mensajeTipo.value = 'warning'
+    return
+  }
+  const resRep = await reporteService.getReportesEstaciones({
+    estacion_id: estacionId,
+    puesto_id: puestoId,
+    mes: m,
+    año: y
   })
+  let registros = Array.isArray(resRep.data) ? resRep.data : []
+  registros = registros.filter(item => {
+    const okPuesto = String(item.puesto_id) === String(puestoId)
+    const d = item.fecha_evaluacion ? new Date(item.fecha_evaluacion) : null
+    const itemMes = d ? (d.getMonth() + 1) : (Number(item.mes) || null)
+    const itemAnio = d ? d.getFullYear() : (Number(item.año) || null)
+    const okFecha = itemMes === m && itemAnio === y
+    return okPuesto && okFecha
+  })
+  if (registros.length > 0) {
+    mensaje.value = `Ya existe una evaluación de ${puesto.nombre} para este mes.`
+    mensajeTipo.value = 'info'
+    return
+  }
+  router.push({ name: 'EvaluacionProceso', params: { puestoNombre: puesto.nombre } })
 }
 
 onMounted(() => {
