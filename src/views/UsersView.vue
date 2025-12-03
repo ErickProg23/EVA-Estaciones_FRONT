@@ -199,6 +199,17 @@
               </v-col>
               <v-col cols="12" md="6">
                 <v-text-field
+                  v-model="userForm.correo"
+                  label="Correo electrónico"
+                  type="email"
+                  prepend-inner-icon="mdi-email"
+                  variant="outlined"
+                  dark
+                  required
+                ></v-text-field>
+              </v-col>
+              <v-col cols="12" md="6">
+                <v-text-field
                   v-model="userForm.password"
                   label="Contraseña"
                   type="password"
@@ -311,6 +322,7 @@ const currentUser = ref(null)
 const userForm = ref({
   nombre: '',
   username: '',
+  correo: '',
   password: '',
   rol_id: null,
   estacion_id: null,
@@ -547,6 +559,7 @@ const clearForm = () => {
   userForm.value = {
     nombre: '',
     username: '',
+    correo: '',
     password: '',
     rol_id: null,
     estacion_id: null,
@@ -559,6 +572,7 @@ const editUser = (user) => {
   userForm.value = {
     nombre: user.nombre,
     username: user.usuario, // Asegúrate de usar 'usuario' no 'username'
+    correo: user.correo || user.email || '',
     password: '',
     rol_id: user.rol_id || user.rol?.id,
     estacion_id: user.estacion_id || user.estacion?.id,
@@ -586,6 +600,7 @@ const saveUser = async () => {
     const userData = {
       nombre: userForm.value.nombre,
       usuario: userForm.value.username,
+      correo: userForm.value.correo,
       password: userForm.value.password,
       activo: userForm.value.activo,
       rol_id: userForm.value.rol_id,

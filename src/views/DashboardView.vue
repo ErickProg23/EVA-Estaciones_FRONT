@@ -16,9 +16,9 @@
           <div>
             <h1 class="text-h4 font-weight-bold text-white mb-2">
               <v-icon class="mr-3" color="green">mdi-view-dashboard</v-icon>
-              Dashboard EVA
+              Dashboard
             </h1>
-            <p class="text-grey-400 ma-0">Bienvenido, {{ username }}</p>
+            <p class="text-grey-400 ma-0">Bienvenido, {{ nombre }}</p>
           </div>
           <v-chip color="success" variant="outlined">
             <v-icon left>mdi-clock</v-icon>
@@ -53,7 +53,7 @@
             <v-card dark color="#2d2d2d">
               <v-card-title>
                 <v-icon left color="blue">mdi-chart-line</v-icon>
-                Tendencia de Evaluaciones
+                Tendencia de evaluaciones
               </v-card-title>
               <v-card-text>
                 <canvas ref="lineChartRef" height="300"></canvas>
@@ -64,7 +64,7 @@
             <v-card dark color="#2d2d2d">
               <v-card-title>
                 <v-icon left color="orange">mdi-chart-donut</v-icon>
-                Distribución por Estación
+                Distribución de empleados por puesto
               </v-card-title>
               <v-card-text>
                 <canvas ref="doughnutChartRef" height="300"></canvas>
@@ -130,7 +130,7 @@ import { evaluacionService, stationService, userService, dashboardService } from
 Chart.register(...registerables)
 
 // ===== REACTIVE DATA =====
-const username = ref('')
+const nombre = ref('')
 const isInitialLoading = ref(true)
 const loadingMessage = ref('Cargando dashboard...')
 const loadingProgress = ref(0)
@@ -195,6 +195,10 @@ const alertas = ref([
 const lineChartRef = ref(null)
 const doughnutChartRef = ref(null)
 
+// Datos para gráficos
+const datosEmpleados = ref(null)
+const datosRendimientoMensual = ref(null)
+
 // Variables para almacenar las instancias de los gráficos
 let lineChart = null
 let doughnutChart = null
@@ -237,10 +241,13 @@ const cargarDatos = async () => {
       
       // 🎯 CREAR GRÁFICOS DESPUÉS DE QUE EL LOADING TERMINE
       setTimeout(() => {
-        if (window.datosRendimiento) {
+        if (datosEmpleados.value) {
           console.log('🎨 Creando gráficos después del loading...')
-          crearGraficosEncargado(window.datosRendimiento)
-          delete window.datosRendimiento // Limpiar
+          crearGraficosEncargado(datosEmpleados.value)
+        }
+        if (datosRendimientoMensual.value) {
+          console.log('🎨 Creando gráfico de líneas con rendimiento mensual...')
+          crearGraficosEncargado(datosRendimientoMensual.value)
         }
       }, 300) // Dar tiempo extra para que el DOM se renderice
       
@@ -272,37 +279,28 @@ const cargarDatosEncargado = async () => {
     // Cargar actividad reciente
     const actividad = await dashboardService.getActividadReciente(usuarioId)
     if (actividad.success) {
-      actividadReciente.value = actividad.data
+      const raw = Array.isArray(actividad.data) ? actividad.data : (actividad.data?.data || [])
+      const mapped = mapActividad(raw)
+      actividadReciente.value = mapped && mapped.length ? mapped : []
+      console.log('📝 Actividades mapeadas:', actividadReciente.value)
     }
     
-    // Cargar evaluaciones pendientes para alertas
-    const pendientes = await dashboardService.getEvaluacionesPendientes(usuarioId)
-    if (pendientes.success) {
-      generarAlertas(pendientes) // Pasar todo el objeto de respuesta
+    // Cargar alertas del periodo y atrasos
+    const alertasSrv = await dashboardService.getAlertas(usuarioId)
+    if (alertasSrv.success) {
+      generarAlertas(alertasSrv)
     }
     
-    // 🎯 GUARDAR LOS DATOS DE RENDIMIENTO PARA CREAR GRÁFICOS DESPUÉS
-    // Agregar esta variable reactiva
-    const datosRendimiento = ref(null)
-    
-    // En cargarDatosEncargado:
-    const rendimiento = await dashboardService.getRendimientoEstacion(usuarioId)
-    if (rendimiento.success) {
-      datosRendimiento.value = rendimiento
+    // Datos para gráficos
+    const empleados = await dashboardService.getEmpleadosEnEstacion(usuarioId)
+    if (empleados.success) {
+      datosEmpleados.value = empleados
     }
     
-    // En cargarDatos, después del loading:
-    setTimeout(() => {
-      isInitialLoading.value = false
-      
-      setTimeout(() => {
-        if (datosRendimiento.value) {
-          console.log('🎨 Creando gráficos después del loading...')
-          crearGraficosEncargado(datosRendimiento.value)
-        }
-      }, 300)
-      
-    }, 500)
+    const rendimientoMensual = await dashboardService.getRendimientoMensual(usuarioId)
+    if (rendimientoMensual.success) {
+      datosRendimientoMensual.value = rendimientoMensual
+    }
     
   } catch (error) {
     console.error('Error al cargar datos del encargado:', error)
@@ -329,26 +327,68 @@ const actualizarMetricas = (responseData) => {
 }
 
 const generarAlertas = (responseData) => {
-  console.log('Generando alertas con:', responseData)
-  
-  // Los datos de alertas vienen como un array en responseData.data
-  const alertasData = responseData.data || []
-  const nuevasAlertas = []
-  
-  // Procesar evaluaciones pendientes del array
-  if (Array.isArray(alertasData) && alertasData.length > 0) {
-    alertasData.forEach((evaluacion, index) => {
-      nuevasAlertas.push({
-        id: index + 1,
-        message: `Evaluación pendiente: ${evaluacion.empleado_nombre} (${evaluacion.puesto_nombre})`,
-        color: evaluacion.dias_vencido > 0 ? 'error' : 'warning',
-        icon: evaluacion.dias_vencido > 0 ? 'mdi-alert-circle' : 'mdi-clock-alert'
-      })
-    })
+  const rd = responseData?.data || {}
+  const payload = rd.data || rd
+  const nuevas = []
+  const deadlineStr = payload?.deadline
+  if (deadlineStr) {
+    const now = new Date()
+    const dl = new Date(String(deadlineStr).replace(' ', 'T'))
+    const diffMs = dl.getTime() - now.getTime()
+    const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+    let color = 'info'
+    let icon = 'mdi-clock-outline'
+    let text = ''
+    if (daysLeft > 6) {
+      color = 'info'
+      icon = 'mdi-calendar-check'
+      text = `Periodo activo. Restan ${daysLeft} días (límite ${deadlineStr}).`
+    } else if (daysLeft >= 3) {
+      color = 'warning'
+      icon = 'mdi-clock-alert'
+      text = `Quedan ${daysLeft} días para completar evaluaciones (límite ${deadlineStr}).`
+    } else if (daysLeft >= 1) {
+      color = 'error'
+      icon = 'mdi-clock-alert-outline'
+      text = `Últimos ${daysLeft} día${daysLeft === 1 ? '' : 's'} para evaluar (límite ${deadlineStr}).`
+    } else {
+      color = 'error'
+      icon = 'mdi-calendar-remove'
+      text = `Periodo de evaluación vencido (límite ${deadlineStr}).`
+    }
+    nuevas.push({ id: 'periodo', message: text, color, icon })
   }
-  
-  alertas.value = nuevasAlertas
-  console.log('Alertas generadas:', alertas.value)
+  const puestos = payload?.atrasos?.puestos || []
+  const empleados = payload?.atrasos?.empleados || []
+  puestos.forEach(p => nuevas.push({ id: `p-${p.puesto_id}`, message: `${p.puesto_nombre}: ${p.pendientes} pendientes`, color: 'warning', icon: 'mdi-alert' }))
+  empleados.forEach(e => nuevas.push({ id: `e-${e.empleado_id}`, message: `Pendiente: ${e.empleado_nombre} (${e.puesto_nombre})`, color: 'error', icon: 'mdi-account-alert' }))
+  alertas.value = nuevas
+}
+
+const formatActivityTime = (fecha) => {
+  const d = new Date(String(fecha).replace(' ', 'T'))
+  const now = new Date()
+  const diffMs = now - d
+  const min = Math.floor(diffMs / 60000)
+  if (min < 60) return `Hace ${min} min`
+  const h = Math.floor(min / 60)
+  if (h < 24) return `Hace ${h} h`
+  const opts = { day: '2-digit', month: 'short', year: 'numeric' }
+  return d.toLocaleDateString('es-ES', opts)
+}
+
+const mapActividad = (arr) => {
+  const a = Array.isArray(arr) ? arr : []
+  return a.map(item => {
+    const tipo = item.tipo || ''
+    const isAlta = tipo === 'empleado_agregado'
+    const isEval = tipo === 'evaluacion_completada' || item.calificacion !== undefined
+    const title = isAlta ? 'Nuevo empleado agregado' : isEval ? 'Evaluación completada' : String(item.descripcion || 'Actividad')
+    const subtitle = isAlta ? `${item.empleado_nombre || ''} - ${item.puesto_nombre || ''}` : isEval ? `${item.empleado_nombre || ''} - ${item.puesto_nombre || ''} · Calificación ${Number(item.calificacion ?? 0)}` : String(item.descripcion || '')
+    const icon = isAlta ? 'mdi-account-plus' : isEval ? 'mdi-check' : 'mdi-information'
+    const color = isAlta ? 'blue' : isEval ? 'success' : 'grey'
+    return { id: item.id, title, subtitle, time: formatActivityTime(item.fecha), icon, color }
+  })
 }
 
 const crearGraficosEncargado = async (responseData) => {
@@ -385,35 +425,26 @@ const crearGraficosEncargado = async (responseData) => {
     }
   })
   
-  // Destruir gráficos existentes si existen
-  if (lineChart) {
-    lineChart.destroy()
-    lineChart = null
-  }
-  if (doughnutChart) {
-    doughnutChart.destroy()
-    doughnutChart = null
-  }
+  
   
   // ✅ CREAR GRÁFICO DE LÍNEAS CON VALIDACIÓN MEJORADA
-  if (lineChartRef.value && typeof lineChartRef.value.getContext === 'function' && data.promedioMensual && data.promedioMensual.length > 0) {
+  const mensualArray = Array.isArray(data)
+    ? data
+    : (Array.isArray(data?.meses) ? data.meses : [])
+  if (lineChartRef.value && typeof lineChartRef.value.getContext === 'function' && mensualArray && mensualArray.length > 0) {
     try {
-      const labels = data.promedioMensual.map(item => {
-        const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
-        return meses[item.mes - 1] || `Mes ${item.mes}`
-      })
-      const valores = data.promedioMensual.map(item => item.promedio)
-      
-      console.log('📈 Creando gráfico de líneas con:', { labels, valores })
-      
+      const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+      const labels = mensualArray.map(item => meses[(Number(item.mes) || 1) - 1] || `Mes ${item.mes}`)
+      const valores = mensualArray.map(item => Number(item.evaluaciones) || 0)
       const ctx = lineChartRef.value.getContext('2d')
       if (ctx) {
+        if (lineChart) { lineChart.destroy(); lineChart = null }
         lineChart = new Chart(ctx, {
           type: 'line',
           data: {
-            labels: labels,
+            labels,
             datasets: [{
-              label: 'Promedio Mensual',
+              label: 'Evaluaciones por Mes',
               data: valores,
               borderColor: '#4CAF50',
               backgroundColor: 'rgba(76, 175, 80, 0.1)',
@@ -423,24 +454,13 @@ const crearGraficosEncargado = async (responseData) => {
           options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                labels: { color: '#ffffff' }
-              }
-            },
+            plugins: { legend: { labels: { color: '#ffffff' } } },
             scales: {
-              x: {
-                ticks: { color: '#ffffff' },
-                grid: { color: 'rgba(255, 255, 255, 0.1)' }
-              },
-              y: {
-                ticks: { color: '#ffffff' },
-                grid: { color: 'rgba(255, 255, 255, 0.1)' }
-              }
+              x: { ticks: { color: '#ffffff' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } },
+              y: { ticks: { color: '#ffffff' }, grid: { color: 'rgba(255, 255, 255, 0.1)' }, beginAtZero: true }
             }
           }
         })
-        console.log('✅ Gráfico de líneas creado exitosamente')
       }
     } catch (error) {
       console.error('❌ Error creando gráfico de líneas:', error)
@@ -449,7 +469,7 @@ const crearGraficosEncargado = async (responseData) => {
     console.log('⚠️ No se puede crear gráfico de líneas:', {
       canvas: !!lineChartRef.value,
       hasGetContext: typeof lineChartRef.value?.getContext === 'function',
-      datos: data.promedioMensual?.length || 0
+      datos: Array.isArray(mensualArray) ? mensualArray.length : 0
     })
   }
   
@@ -462,9 +482,18 @@ const crearGraficosEncargado = async (responseData) => {
         return
       }
       
-      if (data.rendimientoPorPuesto && data.rendimientoPorPuesto.length > 0) {
-        const labels = data.rendimientoPorPuesto.map(item => item.puesto)
-        const valores = data.rendimientoPorPuesto.map(item => item.empleados)
+      const empleadosArray = Array.isArray(data)
+        ? data
+        : (
+            Array.isArray(data?.empleados_por_puesto) ? data.empleados_por_puesto :
+            Array.isArray(data?.empleados) ? data.empleados :
+            Array.isArray(data?.data) ? data.data :
+            Object.values(data || {}).filter(v => v && typeof v === 'object' && 'puesto_nombre' in v && 'total_empleados' in v)
+          )
+
+      if (empleadosArray && empleadosArray.length > 0) {
+        const labels = empleadosArray.map(item => item.puesto_nombre)
+        const valores = empleadosArray.map(item => Number(item.total_empleados) || 0)
         
         console.log('🍩 Creando gráfico circular con:', { labels, valores })
         
@@ -515,35 +544,7 @@ const crearGraficosEncargado = async (responseData) => {
         })
         console.log('✅ Gráfico circular creado exitosamente')
       } else {
-        console.log('⚠️ No hay datos de rendimiento, creando gráfico vacío')
-        
-        doughnutChart = new Chart(ctx, {
-          type: 'doughnut',
-          data: {
-            labels: ['Sin datos disponibles'],
-            datasets: [{
-              data: [1],
-              backgroundColor: ['#666666'],
-              borderColor: '#1e1e1e',
-              borderWidth: 2
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                position: 'bottom',
-                labels: { 
-                  color: '#ffffff',
-                  padding: 20
-                }
-              }
-            },
-            cutout: '60%'
-          }
-        })
-        console.log('✅ Gráfico vacío creado exitosamente')
+        console.log('⚠️ Dataset sin empleados para distribución, se omite actualización del donut')
       }
     } catch (error) {
       console.error('❌ Error creando gráfico circular:', error)
@@ -560,7 +561,7 @@ const crearGraficosEncargado = async (responseData) => {
 
 // ===== LIFECYCLE =====
 onMounted(() => {
-  username.value = sessionStorage.getItem('username') || 'Usuario'
+  nombre.value = sessionStorage.getItem('nombre') || 'Nombre'
   cargarDatos()
 })
 </script>

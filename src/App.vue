@@ -15,7 +15,7 @@
       ></v-app-bar-nav-icon>
       
       <v-app-bar-title class="text-green font-weight-bold">
-        EVA - Estaciones
+        EVA - Gasolineras
       </v-app-bar-title>
       
       <v-spacer></v-spacer>

@@ -86,8 +86,8 @@
               </div>
             </v-col>
             <v-col cols="12" md="3" class="text-right">
-              <v-chip class="mr-2" color="blue" variant="tonal">Puntos: {{ item.calificacion }}</v-chip>
-              <v-chip color="purple" variant="tonal">Ponderado: {{ computePonderado(item) }}</v-chip>
+              <v-chip class="mr-2" color="blue" variant="tonal">Puntos totales: {{ item.calificacion }}</v-chip>
+              <v-chip color="purple" variant="tonal">Porcentaje: {{ computePonderado(item) }}</v-chip>
             </v-col>
           </v-row>
         </div>

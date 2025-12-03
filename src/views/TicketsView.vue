@@ -93,18 +93,7 @@
             <v-card dark color="#2d2d2d" class="mb-4">
               <v-card-text>
                 <v-row align="center">
-                  <v-col cols="12" md="4">
-                    <v-text-field
-                      v-model="search"
-                      label="Buscar tickets..."
-                      prepend-inner-icon="mdi-magnify"
-                      variant="outlined"
-                      density="compact"
-                      hide-details
-                      clearable
-                    ></v-text-field>
-                  </v-col>
-                  <v-col cols="12" md="3">
+                  <v-col cols="12" :md="isAdmin ? 3 : 4">
                     <v-select
                       v-model="selectedStatus"
                       :items="statusOptions"
@@ -117,7 +106,7 @@
                       clearable
                     ></v-select>
                   </v-col>
-                  <v-col cols="12" md="3">
+                  <v-col cols="12" :md="isAdmin ? 3 : 4">
                     <v-select
                       v-model="selectedPriority"
                       :items="priorityOptions"
@@ -130,7 +119,20 @@
                       clearable
                     ></v-select>
                   </v-col>
-                  <v-col v-if="isAdmin" cols="12" md="2">
+                  <v-col cols="12" :md="isAdmin ? 3 : 4">
+                    <v-select
+                      v-model="selectedCategory"
+                      :items="categoryOptions"
+                      item-title="title"
+                      item-value="value"
+                      label="Filtrar por categoría"
+                      variant="outlined"
+                      density="compact"
+                      hide-details
+                      clearable
+                    ></v-select>
+                  </v-col>
+                  <v-col v-if="isAdmin" cols="12" md="3">
                     <v-select
                       v-model="selectedStation"
                       :items="estaciones"
@@ -142,8 +144,8 @@
                       hide-details
                       clearable
                     ></v-select>
-                  </v-col>
-                </v-row>
+                  </v-col
+                ></v-row>
               </v-card-text>
             </v-card>
 
@@ -293,6 +295,18 @@
                   required
                 ></v-select>
               </v-col>
+              <v-col cols="12">
+                <v-select
+                  v-model="ticketForm.categoria"
+                  :items="categoryOptions"
+                  item-title="title"
+                  item-value="value"
+                  label="Categoría"
+                  variant="outlined"
+                  dark
+                  required
+                ></v-select>
+              </v-col>
             </v-row>
           </v-form>
         </v-card-text>
@@ -351,6 +365,49 @@
                 <h3 class="text-h6 mb-3">{{ viewingTicket.titulo }}</h3>
                 <p class="text-body-1 text-grey-300">{{ viewingTicket.descripcion }}</p>
               </div>
+              <v-card dark color="#1a1a1a" class="mt-3">
+                <v-card-title class="text-subtitle-1">Seguimiento</v-card-title>
+                <v-card-text>
+                  <div v-if="commentLoading" class="text-grey-400">Cargando comentarios...</div>
+                  <div v-else>
+                    <div v-if="comments.length === 0" class="text-grey">Sin comentarios</div>
+                    <div v-else class="d-flex flex-column gap-2">
+                      <div v-for="c in comments" :key="c.id" class="pa-2 rounded" style="background:#2d2d2d;">
+                        <div class="d-flex justify-space-between">
+                          <div class="text-caption text-grey-400">
+                            {{ c.usuario?.nombre || c.autor?.nombre || 'Usuario' }}
+                          </div>
+                          <div class="text-caption text-grey-500">
+                            {{ formatDate(c.fecha || c.created_at || c.fecha_creacion) }}
+                          </div>
+                        </div>
+                        <div class="text-body-2 mt-1">
+                          {{ c.comentario || c.texto || c.mensaje }}
+                        </div>
+                      </div>
+                    </div>
+                    <v-divider class="my-3"></v-divider>
+                    <v-textarea
+                      v-model="newComment"
+                      label="Agregar comentario"
+                      variant="outlined"
+                      dark
+                      rows="3"
+                      :disabled="commentSaving"
+                    ></v-textarea>
+                    <v-btn
+                      color="blue"
+                      variant="outlined"
+                      class="mt-2"
+                      :disabled="!newComment || commentSaving"
+                      :loading="commentSaving"
+                      @click="postComment"
+                    >
+                      Responder
+                    </v-btn>
+                  </div>
+                </v-card-text>
+              </v-card>
             </v-col>
             
             <!-- Panel de información -->
@@ -526,6 +583,7 @@ const snackbarColor = ref('success')
 const search = ref('')
 const selectedStatus = ref(null)
 const selectedPriority = ref(null)
+const selectedCategory = ref(null)
 const selectedStation = ref(null)
 const editingTicket = ref(null)
 const viewingTicket = ref(null)
@@ -549,10 +607,17 @@ const estaciones = ref([])
 const tecnicos = ref([])
 const stats = ref({})
 
+// Seguimiento de comentarios
+const comments = ref([])
+const commentLoading = ref(false)
+const commentSaving = ref(false)
+const newComment = ref('')
+
 // Formulario de ticket
 const ticketForm = ref({
   titulo: '',
   descripcion: '',
+  categoria: 'equipos',
   prioridad: 2, // ✅ CAMBIO: Usar valor numérico (2 = Media)
   estacion_id: null,
   creador_id: null
@@ -611,11 +676,11 @@ const priorityOptions = [
 ]
 
 const categoryOptions = [
-  { value: 'hardware', title: 'Hardware' },
-  { value: 'software', title: 'Software' },
-  { value: 'red', title: 'Red' },
-  { value: 'impresora', title: 'Impresora' },
-  { value: 'otro', title: 'Otro' }
+  {value: 'terminales', title: 'Terminales'},
+  { value: 'equipos', title: 'Equipos' },
+  { value: 'internet', title: 'Internet' },
+  { value: 'nexus', title: 'Nexus' },
+  { value: 'programas', title: 'Programas'}
 ]
 
 // Headers de la tabla
@@ -626,6 +691,7 @@ const headers = computed(() => {
     { title: 'Descripción', key: 'descripcion', sortable: true },
     { title: 'Estado', key: 'estado_texto', sortable: true },
     { title: 'Prioridad', key: 'prioridad_texto', sortable: true },
+    { title: 'Categoría', key: 'categoria_texto', sortable: true },
   ]
   
   if (isAdmin.value) {
@@ -661,6 +727,10 @@ const filteredTickets = computed(() => {
   // Solo los admins pueden filtrar por estación
   if (selectedStation.value && isAdmin.value) {
     filtered = filtered.filter(ticket => ticket.estacion_id === selectedStation.value)
+  }
+  
+  if (selectedCategory.value) {
+    filtered = filtered.filter(ticket => ticket.categoria === selectedCategory.value)
   }
   
   return filtered
@@ -762,11 +832,17 @@ const loadTickets = async () => {
           3: 'Alta',
         }[ticket.prioridad] || 'Media'
         
+        const categoriaTexto = {
+          equipos: 'Equipos',
+          internet: 'Internet',
+          erp: 'Sistema ERP'
+        }[ticket.categoria] || 'Sin categoría'
         return {
           ...ticket,
           // Agregar campos de texto para mostrar en la tabla
           estado_texto: estadoTexto,
-          prioridad_texto: prioridadTexto
+          prioridad_texto: prioridadTexto,
+          categoria_texto: categoriaTexto
         }
       }) : []
       
@@ -851,7 +927,8 @@ const openTicketDialog = (ticket = null) => {
       // Asignar cada propiedad individualmente para mantener reactividad
       ticketForm.value.titulo = ticket.titulo || ''
       ticketForm.value.descripcion = ticket.descripcion || ''
-      ticketForm.value.prioridad = ticket.prioridad || 'media'
+      ticketForm.value.categoria = ticket.categoria || 'equipos'
+      ticketForm.value.prioridad = ticket.prioridad || 'Media'
       ticketForm.value.estacion_id = ticket.estacion_id || null
       ticketForm.value.creador_id = ticket.creador_id || null
 
@@ -859,7 +936,8 @@ const openTicketDialog = (ticket = null) => {
       // Limpiar formulario para nuevo ticket
       ticketForm.value.titulo = ''
       ticketForm.value.descripcion = ''
-      ticketForm.value.prioridad = 'media'
+      ticketForm.value.categoria = 'equipos'
+      ticketForm.value.prioridad = 'Media'
       ticketForm.value.estacion_id = isAdmin.value ? null : userStation.value
       ticketForm.value.creador_id = currentUser.value?.id || null
     }
@@ -877,6 +955,7 @@ const closeTicketDialog = () => {
   nextTick(() => {
     ticketForm.value.titulo = ''
     ticketForm.value.descripcion = ''
+    ticketForm.value.categoria = 'equipos'
     ticketForm.value.prioridad = 'Media'
     ticketForm.value.estacion_id = isAdmin.value ? null : userStation.value
     ticketForm.value.creador_id = currentUser.value?.id || null
@@ -885,7 +964,43 @@ const closeTicketDialog = () => {
 
 const viewTicket = async (ticket) => {
   viewingTicket.value = ticket
+  commentLoading.value = true
+  await loadComments(ticket.id)
+  commentLoading.value = false
   showViewDialog.value = true
+}
+
+const loadComments = async (ticketId) => {
+  try {
+    const result = await ticketService.getTicketComments(ticketId)
+    const arr = result.success ? (Array.isArray(result.data) ? result.data : result.data?.data || []) : []
+    comments.value = arr
+  } catch (error) {
+    comments.value = []
+  }
+}
+
+const postComment = async () => {
+  if (!newComment.value || !viewingTicket.value) return
+  if (!currentUser.value?.id) {
+    showMessage('Error: Usuario no autenticado', 'error')
+    return
+  }
+  commentSaving.value = true
+  try {
+    const result = await ticketService.addComment(viewingTicket.value.id, newComment.value)
+    if (result.success) {
+      newComment.value = ''
+      await loadComments(viewingTicket.value.id)
+      showMessage('Comentario agregado', 'success')
+    } else {
+      showMessage(result.error || 'Error al agregar comentario', 'error')
+    }
+  } catch (error) {
+    showMessage('Error al agregar comentario', 'error')
+  } finally {
+    commentSaving.value = false
+  }
 }
 
 const closeViewDialog = () => {

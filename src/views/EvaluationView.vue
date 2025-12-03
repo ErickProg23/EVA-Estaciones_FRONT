@@ -37,7 +37,7 @@
         md="4"
       >
         <!-- Si está evaluado o está cargando/verificando, bloqueo el click -->
-        <v-card class="pa-4" hover @click="!p.evaluado && !isLoading && seleccionarPuesto(p)">
+        <v-card class="pa-4" hover @click="seleccionarPuesto(p)">
           <div class="d-flex align-center justify-space-between">
             <div class="text-h6">{{ p.nombre }}</div>
             <v-chip v-if="p.evaluado" color="green" variant="tonal" size="small">Evaluado</v-chip>
@@ -121,7 +121,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { evaluacionService, puestoService, reporteService } from '@/services/apiService'
+import { evaluacionService, puestoService, reporteService, dashboardService } from '@/services/apiService'
 
 
 const isLoading = ref(false)
@@ -205,6 +205,35 @@ const headersEmpleados = [
   { title: 'Número de empleado', key: 'num_empleado' },
   { title: 'Acciones', key: 'actions', sortable: false },
 ]
+
+const periodoActivo = ref(true)
+const diasRestantes = ref(0)
+const deadline = ref('')
+
+const loadPeriodoEvaluacion = async () => {
+  const usuarioId = sessionStorage.getItem('usuario_id')
+  try {
+    const res = await dashboardService.getAlertas(usuarioId)
+    const payload = res?.data?.data || res?.data || {}
+    const dlStr = payload?.deadline
+    if (dlStr) {
+      const now = new Date()
+      const dl = new Date(String(dlStr).replace(' ', 'T'))
+      const diffMs = dl.getTime() - now.getTime()
+      const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+      diasRestantes.value = daysLeft
+      deadline.value = dlStr
+      periodoActivo.value = daysLeft > 0
+      if (daysLeft > 0) {
+        mensaje.value = `Periodo activo. Restan ${daysLeft} días para evaluar.`
+        mensajeTipo.value = 'info'
+      } else {
+        mensaje.value = `Periodo de evaluación vencido. Límite ${dlStr}.`
+        mensajeTipo.value = 'error'
+      }
+    }
+  } catch (e) {}
+}
 
 const cargarPuestos = async () => {
   try {
@@ -290,6 +319,11 @@ const seleccionarPuesto = async (puesto) => {
     mensajeTipo.value = 'info'
     return
   }
+  if (!periodoActivo.value) {
+    mensaje.value = `Periodo de evaluación vencido. Límite ${deadline.value || ''}.`
+    mensajeTipo.value = 'error'
+    return
+  }
   const estacionId = estacionIdSesion()
   const m = mesActual()
   const y = añoActual()
@@ -326,7 +360,8 @@ const seleccionarPuesto = async (puesto) => {
   router.push({ name: 'EvaluacionProceso', params: { puestoNombre: puesto.nombre } })
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await loadPeriodoEvaluacion()
   cargarPuestos()
 })
 

@@ -150,6 +150,7 @@ const handleLogin = async () => {
       sessionStorage.setItem('rol_id', data.rol_id)
       sessionStorage.setItem('estacion_id', data.estacion_id)
       sessionStorage.setItem('usuario_id', data.usuario_id)
+      sessionStorage.setItem('nombre', data.nombre)
 
       if (data.token) {
         sessionStorage.setItem('token', data.token)

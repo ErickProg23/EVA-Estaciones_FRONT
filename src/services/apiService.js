@@ -18,6 +18,10 @@ apiClient.interceptors.request.use(
     if (token) {
       config.headers.token = token
     }
+    const usuarioId = sessionStorage.getItem('usuario_id')
+    if (usuarioId) {
+      config.headers['token_usuario_id'] = usuarioId
+    }
     return config
   },
   (error) => {
@@ -634,7 +638,9 @@ export const ticketService = {
   // Agregar comentario al ticket
   addComment: async (ticketId, comentario) => {
     try {
-      const response = await apiClient.post(`/tickets/${ticketId}/comentarios`, { comentario })
+      const usuarioId = sessionStorage.getItem('usuario_id')
+      const payload = usuarioId ? { comentario, usuario_id: parseInt(usuarioId) } : { comentario }
+      const response = await apiClient.post(`/tickets/${ticketId}/comentarios`, payload)
       return {
         success: true,
         data: response.data
@@ -824,9 +830,9 @@ export const dashboardService = {
   },
 
   // Obtener resumen de rendimiento de la estación
-  getRendimientoEstacion: async (usuarioId, periodo = 'mes') => {
+  getEmpleadosEnEstacion: async (usuarioId) => {
     try {
-      const response = await apiClient.get(`/api/getRendimientoEstacion/${usuarioId}?periodo=${periodo}`)
+      const response = await apiClient.get(`/api/getEmpleadosEnEstacion/${usuarioId}`)
       return {
         success: true,
         data: response.data
@@ -834,10 +840,43 @@ export const dashboardService = {
     } catch (error) {
       return {
         success: false,
-        message: error.response?.data?.message || 'Error al obtener rendimiento de la estación'
+        message: error.response?.data?.message || 'Error al obtener empleados en la estación'
+      }
+    }
+  },
+
+  getRendimientoMensual: async (usuarioId) => {
+    try {
+      const response = await apiClient.get(`/api/getRendimientoMensual/${usuarioId}`)
+      return {
+        success: true,
+        data: response.data
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Error al obtener rendimiento mensual'
+      }
+    }
+  },
+
+  getAlertas: async (usuarioId) => {
+    try {
+      const response = await apiClient.get(`/api/getAlertas/${usuarioId}`)
+      return {
+        success: true,
+        data: response.data
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Error al obtener alertas'
       }
     }
   }
+
+
+
 }
 
 // Exportar cliente base para casos especiales

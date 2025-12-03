@@ -20,7 +20,7 @@
       />
 
       <v-card v-else dark color="#2d2d2d">
-        <v-card-text>
+        <v-card-text class="pa-0">
           <v-data-table
             :headers="headers"
             :items="productos"
@@ -211,4 +211,6 @@ onMounted(() => {
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
 .custom-table { background: transparent !important; }
+.custom-table .v-data-table__wrapper { background: transparent; }
+.custom-table .v-table { width: 100%; }
 </style>
