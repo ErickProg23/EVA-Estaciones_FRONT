@@ -141,10 +141,16 @@ function normalizeProductoName(prod) {
 }
 
 function productoId(p) {
-  return Number(p?.producto?.id ?? p?.producto_id ?? NaN)
+  const id = Number(p?.producto?.id ?? p?.producto_id ?? NaN)
+  if (Number.isFinite(id)) return id
+  const name = normalizeProductoName(p.producto)
+  if (name === 'Magna') return 1
+  if (name === 'Premium') return 2
+  if (name === 'Diesel') return 3
+  return NaN
 }
 function keyPump(p) {
-  return `${p.estacion_id}:${productoId(p)}:${p.numero_bomba}`
+  return `${p.estacion_id}:${productoId(p)}:${String(p.numero_bomba)}`
 }
 function labelPump(p) {
   return `Bomba ${p.numero_bomba} (${normalizeProductoName(p.producto)})`
@@ -206,8 +212,8 @@ async function loadUltimas() {
     const res = await bombaService.getLecturasManualUltimas(estacionId, fechaSeleccionada.value, turnoSeleccionado.value)
     const list = res.success ? (Array.isArray(res.data) ? res.data : []) : []
     for (const it of list) {
-      const key = `${it.estacion_id}:${it.producto_id}:${it.numero_bomba}`
-      const lectura = Number(it.lectura ?? it.final ?? 0)
+      const key = `${it.estacion_id}:${it.producto_id}:${String(it.numero_bomba)}`
+      const lectura = Number(it.cantidad ?? it.lectura ?? it.final ?? 0)
       lecturasUltimas[key] = lectura
       if (!(key in encargadoInputs)) encargadoInputs[key] = 0
     }
