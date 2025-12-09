@@ -33,62 +33,56 @@
           <v-tab value="Diesel">Diesel</v-tab>
         </v-tabs>
 
-        <v-row>
-          <v-col
-            v-for="pump in currentPumps"
-            :key="keyPump(pump)"
-            cols="12"
-            sm="6"
-          >
-            <v-card color="#3a3a3a" class="pump-card">
-              <v-card-title class="py-2 text-body-2">{{ labelPump(pump) }}</v-card-title>
-              <v-card-text>
-                <v-text-field
-                  :model-value="formatNumber(ultimaLectura(keyPump(pump)))"
-                  label="Última guardada"
-                  variant="outlined"
-                  density="comfortable"
-                  readonly
-                />
-                <v-text-field
-                  v-model.number="encargadoInputs[keyPump(pump)]"
-                  type="number"
-                  inputmode="decimal"
-                  label="Lectura encargado"
-                  variant="outlined"
-                  density="comfortable"
-                />
-                <v-text-field
-                  :model-value="formatNumber(diferenciaPump(keyPump(pump)))"
-                  label="Diferencia"
-                  variant="outlined"
-                  density="comfortable"
-                  readonly
-                />
-              </v-card-text>
-            </v-card>
-          </v-col>
-        </v-row>
+        <v-data-table
+          :headers="tableHeaders"
+          :items="currentPumps"
+          class="transparent"
+          density="compact"
+        >
+          <template #item.bomba="{ item }">
+            {{ labelPump(item) }}
+          </template>
+          <template #item.ultima="{ item }">
+            {{ formatNumber(ultimaLectura(keyPump(item))) }}
+          </template>
+          <template #item.encargado="{ item }">
+            <v-text-field
+              v-model.number="encargadoInputs[keyPump(item)]"
+              type="number"
+              inputmode="decimal"
+              variant="outlined"
+              density="comfortable"
+              hide-details="auto"
+            />
+          </template>
+          <template #item.diferencia="{ item }">
+            <v-chip :color="diffColor(diferenciaPump(keyPump(item)))" variant="flat">
+              {{ formatNumber(diferenciaPump(keyPump(item))) }}
+            </v-chip>
+          </template>
+        </v-data-table>
 
         <v-divider class="my-4"></v-divider>
 
-        <v-row>
-          <v-col cols="12" md="4">
-            <v-alert variant="tonal" type="info">
-              Total guardadas: {{ formatNumber(totalUltimas) }}
-            </v-alert>
-          </v-col>
-          <v-col cols="12" md="4">
-            <v-alert variant="tonal" type="success">
-              Total encargado: {{ formatNumber(totalEncargado) }}
-            </v-alert>
-          </v-col>
-          <v-col cols="12" md="4">
-            <v-alert variant="tonal" type="warning">
-              Diferencia total: {{ formatNumber(totalDiferencia) }}
-            </v-alert>
-          </v-col>
-        </v-row>
+        <div class="bottom-actions">
+          <v-row>
+            <v-col cols="12" md="4">
+              <v-alert variant="tonal" type="info">
+                Total guardadas: {{ formatNumber(totalUltimas) }}
+              </v-alert>
+            </v-col>
+            <v-col cols="12" md="4">
+              <v-alert variant="tonal" type="success">
+                Total encargado: {{ formatNumber(totalEncargado) }}
+              </v-alert>
+            </v-col>
+            <v-col cols="12" md="4">
+              <v-alert :type="totalDiferencia === 0 ? 'success' : (Math.abs(totalDiferencia) < 5 ? 'warning' : 'error')" variant="tonal">
+                Diferencia total: {{ formatNumber(totalDiferencia) }}
+              </v-alert>
+            </v-col>
+          </v-row>
+        </div>
 
         <v-alert
           v-if="mensaje.text"
@@ -169,6 +163,21 @@ const pumpsByProduct = computed(() => {
 })
 const currentPumps = computed(() => pumpsByProduct.value[selectedProduct.value] || [])
 
+const tableHeaders = [
+  { title: 'Bomba', key: 'bomba' },
+  { title: 'Última', key: 'ultima' },
+  { title: 'Encargado', key: 'encargado' },
+  { title: 'Δ Diferencia', key: 'diferencia' }
+]
+
+function diffColor(val) {
+  const v = Number(val ?? 0)
+  const a = Math.abs(v)
+  if (a === 0) return 'success'
+  if (a < 5) return 'warning'
+  return 'error'
+}
+
 function formatNumber(val) {
   const n = Number(val ?? 0)
   return n.toFixed(2)
@@ -237,4 +246,12 @@ onMounted(async () => {
 <style scoped>
 .pump-card { padding-bottom: 8px; }
 .pump-card :deep(.v-field__input) { font-size: 1.05rem; }
+
+.bottom-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: #2d2d2d;
+  padding: 8px 0 12px;
+}
 </style>

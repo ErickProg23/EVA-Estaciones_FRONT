@@ -74,21 +74,28 @@
                 />
 
               </v-card-text>
-              <v-card-actions>
-                <v-btn
-                  color="green"
-                  class="text-none"
-                  size="large"
-                  block
-                  :loading="guardando"
-                  @click="guardarLecturaPump(pump)"
-                >
-                  Guardar
-                </v-btn>
-              </v-card-actions>
             </v-card>
           </v-col>
         </v-row>
+
+        <div class="bottom-actions">
+          <v-btn
+            color="green"
+            class="text-none"
+            size="x-large"
+            block
+            :loading="guardando"
+            :disabled="!puedeGuardarProducto"
+            @click="guardarLecturasProducto"
+          >
+            Guardar lecturas de {{ selectedProduct }}
+          </v-btn>
+          <div class="helper" v-if="productoStats.total">
+            <span v-if="productoStats.faltantes">Faltan {{ productoStats.faltantes }} lecturas</span>
+            <span v-else-if="productoStats.errores">Hay {{ productoStats.errores }} lecturas inválidas</span>
+            <span v-else>Listo para guardar {{ productoStats.total }} lecturas</span>
+          </div>
+        </div>
 
         <v-alert
           v-if="mensaje.text"
@@ -261,6 +268,76 @@ async function guardarLecturaPump(pump) {
   }
 }
 
+const productoStats = computed(() => {
+  const arr = currentPumps.value
+  let faltantes = 0
+  let errores = 0
+  for (const p of arr) {
+    const key = pumpKey(p)
+    ensurePumpState(key)
+    const val = pumpStates[key].final
+    const n = Number(val)
+    if (val == null || val === '' || !Number.isFinite(n) || n <= 0) faltantes++
+    else if (getFinalError(key).length) errores++
+  }
+  return { total: arr.length, faltantes, errores }
+})
+
+const puedeGuardarProducto = computed(() => productoStats.value.total > 0 && productoStats.value.faltantes === 0 && productoStats.value.errores === 0)
+
+async function guardarLecturasProducto() {
+  mensaje.value.text = ''
+  const stats = productoStats.value
+  if (stats.total === 0) {
+    mensaje.value = { text: 'No hay bombas para este producto', type: 'error', icon: 'mdi-alert-circle' }
+    return
+  }
+  if (stats.faltantes > 0) {
+    mensaje.value = { text: 'Completa todas las lecturas antes de guardar', type: 'error', icon: 'mdi-alert-circle' }
+    return
+  }
+  if (stats.errores > 0) {
+    mensaje.value = { text: 'Corrige las lecturas inválidas', type: 'error', icon: 'mdi-alert-circle' }
+    return
+  }
+  guardando.value = true
+  let ok = 0
+  let fail = 0
+  for (const pump of currentPumps.value) {
+    try {
+      const key = pumpKey(pump)
+      const base = {
+        lectura: Number(pumpStates[key].final),
+        fecha: fechaSeleccionada.value,
+        turno: turnoSeleccionado.value,
+        estacion_id: pump.estacion_id,
+        numero_bomba: pump.numero_bomba
+      }
+      const producto_id = Number(pump?.producto?.id ?? pump?.producto_id)
+      let res = await bombaService.guardarLecturaManual({ ...base, producto_id })
+      const errTxt = String(res?.data?.error || res?.message || '')
+      if (!res.success && (errTxt.includes('producto_id') || errTxt.includes('unexpected'))) {
+        res = await bombaService.guardarLecturaManual({ ...base, producto: normalizeProducto(pump.producto) })
+      }
+      if (res.success) {
+        localStorage.setItem(keyLSPump(pump, base.fecha, base.turno), JSON.stringify({ ...base, producto_id }))
+        recalcularInicioPump(pump)
+        ok++
+      } else {
+        fail++
+      }
+    } catch {
+      fail++
+    }
+  }
+  if (fail === 0) {
+    mensaje.value = { text: `Guardadas ${ok} lecturas de ${selectedProduct.value}`, type: 'success', icon: 'mdi-check-circle' }
+  } else {
+    mensaje.value = { text: `Se guardaron ${ok} lecturas y fallaron ${fail}`, type: 'error', icon: 'mdi-alert-circle' }
+  }
+  guardando.value = false
+}
+
 async function loadBombas() {
   try {
     const res = await bombaService.getBombasByUsuarioEstacion(usuarioId)
@@ -278,6 +355,11 @@ async function loadBombas() {
 }
 
 watch([fechaSeleccionada, turnoSeleccionado], () => {
+  pumps.value.forEach(p => {
+    const key = pumpKey(p)
+    ensurePumpState(key)
+    pumpStates[key].final = 0
+  })
   recalcularInicioAll()
 })
 
@@ -300,6 +382,20 @@ onMounted(() => {
   background: #2d2d2d;
   padding-top: 8px;
   padding-bottom: 8px;
+}
+
+.bottom-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: #2d2d2d;
+  padding: 8px 0 12px;
+}
+
+.helper {
+  margin-top: 6px;
+  color: #c8c8c8;
+  font-size: 0.9rem;
 }
 
 /* Tarjeta de bomba con más espacio táctil */
