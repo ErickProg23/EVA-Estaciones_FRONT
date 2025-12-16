@@ -5,6 +5,7 @@
     color="#1a1a1a"
     border="0"
     class="custom-drawer"
+    :width="mobile ? 256 : 300"
   >
     <!-- Menú de navegación jerárquico -->
     <v-list density="compact" nav class="navigation-list">
@@ -144,5 +145,16 @@ onMounted(() => {
 
 .v-list-group__items .v-list-item {
   padding-inline-start: 56px !important;
+}
+
+.nav-item :deep(.v-list-item-title),
+.nav-group :deep(.v-list-item-title),
+.nav-subitem :deep(.v-list-item-title) {
+  white-space: normal;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 </style>

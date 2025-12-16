@@ -124,7 +124,7 @@ const routes = [
     path: '/manuales/subir',
     name: 'subirManual',
     component: SubirManualView,
-    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Mantenimiento'] }
+    meta: { requiresAuth: true, allowedRoles: ['Mantenimiento'] }
   },
   {
     path: '/manuales/comparativas',

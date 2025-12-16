@@ -5,15 +5,31 @@
       <v-card-text>
         <v-row class="mb-2">
           <v-col cols="12" md="6">
-            <v-text-field
-              v-model="fechaSeleccionada"
-              type="date"
-              label="Fecha"
-              :max="todayStr"
-              variant="outlined"
-              density="comfortable"
-              hide-details="auto"
-            />
+            <v-menu
+              v-model="menuFecha"
+              :close-on-content-click="false"
+              transition="scale-transition"
+              offset-y
+            >
+              <template #activator="{ props }">
+                <v-text-field
+                  v-bind="props"
+                  :model-value="fechaSeleccionada"
+                  label="Fecha"
+                  variant="outlined"
+                  density="comfortable"
+                  hide-details="auto"
+                  readonly
+                  prepend-inner-icon="mdi-calendar"
+                />
+              </template>
+              <v-date-picker
+                v-model="pickerFecha"
+                :max="todayStr"
+                color="green"
+                @update:modelValue="val => { fechaSeleccionada = toYMD(val); menuFecha = false }"
+              />
+            </v-menu>
           </v-col>
           <v-col cols="12" md="6">
             <v-select
@@ -27,62 +43,83 @@
           </v-col>
         </v-row>
 
-        <v-tabs v-model="selectedProduct" grow color="green" class="mb-4">
+        <div class="section-title">Producto</div>
+        <v-tabs v-model="selectedProduct" grow color="green" class="mb-2 product-tabs">
           <v-tab value="Magna">Magna</v-tab>
           <v-tab value="Premium">Premium</v-tab>
           <v-tab value="Diesel">Diesel</v-tab>
         </v-tabs>
 
+        <v-row class="mb-2 encargado-inputs">
+          <v-col cols="12" md="4">
+            <v-text-field
+              v-model.number="encargadoTotales[1]"
+              label="Encargado total $ — Magna"
+              type="number"
+              variant="outlined"
+              density="compact"
+              hide-details="auto"
+            />
+          </v-col>
+          <v-col cols="12" md="4">
+            <v-text-field
+              v-model.number="encargadoTotales[2]"
+              label="Encargado total $ — Premium"
+              type="number"
+              variant="outlined"
+              density="compact"
+              hide-details="auto"
+            />
+          </v-col>
+          <v-col cols="12" md="4">
+            <v-text-field
+              v-model.number="encargadoTotales[3]"
+              label="Encargado total $ — Diesel"
+              type="number"
+              variant="outlined"
+              density="compact"
+              hide-details="auto"
+            />
+          </v-col>
+        </v-row>
+
+        <v-row class="mb-2 totals-grid">
+          <v-col cols="12" md="6">
+            <v-card variant="tonal" color="info" class="pa-3">
+              <div class="totals-title">Totales producto</div>
+              <div class="totals-line">Lecturas: {{ formatNumber(totalDifLecturas) }} | $: $ {{ formatMoney(totalDifPesosProducto) }}</div>
+              <div class="totals-line">Diferencia $: $ {{ formatMoney(diferenciaPesosProducto) }}</div>
+            </v-card>
+          </v-col>
+          <v-col cols="12" md="6">
+            <v-card variant="tonal" color="success" class="pa-3">
+              <div class="totals-title">Totales globales</div>
+              <div class="totals-line">Lecturas: {{ formatNumber(totalDifLecturasAll) }} | $: $ {{ formatMoney(totalDifPesosGlobal) }}</div>
+              <div class="totals-line">Encargado total $: $ {{ formatMoney(encargadoTotalGlobal) }}</div>
+              <div class="totals-line">Diferencia $: $ {{ formatMoney(diferenciaPesosGlobal) }}</div>
+            </v-card>
+          </v-col>
+        </v-row>
+
+
+
         <v-data-table
           :headers="tableHeaders"
           :items="currentPumps"
-          class="transparent"
+          class="transparent sticky-first-col"
           density="compact"
+          hide-default-footer
         >
           <template #item.bomba="{ item }">
             {{ labelPump(item) }}
           </template>
-          <template #item.ultima="{ item }">
-            {{ formatNumber(ultimaLectura(keyPump(item))) }}
+          <template #item.difLecturas="{ item }">
+            {{ formatNumber(diferenciaLecturasPump(keyPump(item))) }}
           </template>
-          <template #item.encargado="{ item }">
-            <v-text-field
-              v-model.number="encargadoInputs[keyPump(item)]"
-              type="number"
-              inputmode="decimal"
-              variant="outlined"
-              density="comfortable"
-              hide-details="auto"
-            />
-          </template>
-          <template #item.diferencia="{ item }">
-            <v-chip :color="diffColor(diferenciaPump(keyPump(item)))" variant="flat">
-              {{ formatNumber(diferenciaPump(keyPump(item))) }}
-            </v-chip>
+          <template #item.difPesos="{ item }">
+            $ {{ formatMoney(diferenciaLecturasPump(keyPump(item)) * precioProductoId(productoId(item))) }}
           </template>
         </v-data-table>
-
-        <v-divider class="my-4"></v-divider>
-
-        <div class="bottom-actions">
-          <v-row>
-            <v-col cols="12" md="4">
-              <v-alert variant="tonal" type="info">
-                Total guardadas: {{ formatNumber(totalUltimas) }}
-              </v-alert>
-            </v-col>
-            <v-col cols="12" md="4">
-              <v-alert variant="tonal" type="success">
-                Total encargado: {{ formatNumber(totalEncargado) }}
-              </v-alert>
-            </v-col>
-            <v-col cols="12" md="4">
-              <v-alert :type="totalDiferencia === 0 ? 'success' : (Math.abs(totalDiferencia) < 5 ? 'warning' : 'error')" variant="tonal">
-                Diferencia total: {{ formatNumber(totalDiferencia) }}
-              </v-alert>
-            </v-col>
-          </v-row>
-        </div>
 
         <v-alert
           v-if="mensaje.text"
@@ -102,12 +139,14 @@
 
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue'
-import { bombaService } from '@/services/apiService'
+import { bombaService, productoService } from '@/services/apiService'
 
 const todayStr = new Date().toISOString().split('T')[0]
 const turnos = [1, 2, 3]
 
 const fechaSeleccionada = ref(todayStr)
+const menuFecha = ref(false)
+const pickerFecha = ref(new Date())
 const turnoSeleccionado = ref(1)
 const selectedProduct = ref('Magna')
 
@@ -117,8 +156,41 @@ const estacionId = sessionStorage.getItem('estacion_id')
 const mensaje = ref({ text: '', type: 'info', icon: 'mdi-information' })
 
 const bombas = ref([])
-const lecturasUltimas = reactive({})      // key -> número
-const encargadoInputs = reactive({})      // key -> número
+const difLecturasApi = reactive({})       // key -> número (API)
+const preciosPorProducto = reactive({ 1: 0, 2: 0, 3: 0 })
+const encargadoTotales = reactive({ 1: 0, 2: 0, 3: 0 })
+
+function formatMoney(val) {
+  const n = Number(val ?? 0)
+  return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+function precioProductoId(id) {
+  return Number(preciosPorProducto[id] ?? 0)
+}
+const selectedProductId = computed(() => {
+  return selectedProduct.value === 'Magna' ? 1 : selectedProduct.value === 'Premium' ? 2 : selectedProduct.value === 'Diesel' ? 3 : NaN
+})
+const precioSeleccionado = computed(() => precioProductoId(selectedProductId.value))
+const totalDifPesosProducto = computed(() => totalDifLecturas.value * precioSeleccionado.value)
+
+const diferenciaPesosProducto = computed(() => {
+  const enc = Number(encargadoTotales[selectedProductId.value] ?? 0)
+  return enc - totalDifPesosProducto.value
+})
+
+const totalDifPesosGlobal = computed(() => {
+  let sum = 0
+  for (const p of bombas.value) {
+    const pid = productoId(p)
+    sum += diferenciaLecturasPump(keyPump(p)) * precioProductoId(pid)
+  }
+  return sum
+})
+
+const encargadoTotalGlobal = computed(() => {
+  return Number(encargadoTotales[1] ?? 0) + Number(encargadoTotales[2] ?? 0) + Number(encargadoTotales[3] ?? 0)
+})
+const diferenciaPesosGlobal = computed(() => encargadoTotalGlobal.value - totalDifPesosGlobal.value)
 
 function normalizeProductoName(prod) {
   const id = typeof prod === 'object' && prod !== null ? Number(prod.id ?? NaN) : typeof prod === 'number' ? prod : NaN
@@ -165,10 +237,10 @@ const currentPumps = computed(() => pumpsByProduct.value[selectedProduct.value] 
 
 const tableHeaders = [
   { title: 'Bomba', key: 'bomba' },
-  { title: 'Última', key: 'ultima' },
-  { title: 'Encargado', key: 'encargado' },
-  { title: 'Δ Diferencia', key: 'diferencia' }
+  { title: 'Diferencia total lecturas', key: 'difLecturas' },
+  { title: 'Pesos $', key: 'difPesos' },
 ]
+
 
 function diffColor(val) {
   const v = Number(val ?? 0)
@@ -183,28 +255,36 @@ function formatNumber(val) {
   return n.toFixed(2)
 }
 
-function ultimaLectura(key) {
-  const v = lecturasUltimas[key]
-  return Number.isFinite(v) ? v : 0
-}
-function diferenciaPump(key) {
-  const enc = Number(encargadoInputs[key] ?? 0)
-  const ult = ultimaLectura(key)
-  if (Number.isNaN(enc)) return 0
-  return enc - ult
+function toYMD(val) {
+  try {
+    const d = val instanceof Date ? val : new Date(val)
+    if (Number.isNaN(d.getTime())) return todayStr
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  } catch {
+    return todayStr
+  }
 }
 
-const totalUltimas = computed(() => {
+function diferenciaLecturasPump(key) {
+  const api = Number(difLecturasApi[key] ?? 0)
+  return Number.isFinite(api) ? api : 0
+}
+
+
+const totalDifLecturas = computed(() => {
   let sum = 0
-  for (const p of currentPumps.value) sum += ultimaLectura(keyPump(p))
+  for (const p of currentPumps.value) sum += diferenciaLecturasPump(keyPump(p))
   return sum
 })
-const totalEncargado = computed(() => {
+
+const totalDifLecturasAll = computed(() => {
   let sum = 0
-  for (const p of currentPumps.value) sum += Number(encargadoInputs[keyPump(p)] ?? 0)
+  for (const p of bombas.value) sum += diferenciaLecturasPump(keyPump(p))
   return sum
 })
-const totalDiferencia = computed(() => totalEncargado.value - totalUltimas.value)
 
 async function loadBombas() {
   try {
@@ -215,23 +295,50 @@ async function loadBombas() {
   }
 }
 
-async function loadUltimas() {
+async function loadPrecios() {
+  try {
+    const res = await productoService.getProductosByUsuarioEstacion(usuarioId)
+    const list = res.success ? (Array.isArray(res.data) ? res.data : []) : []
+    for (const prod of list) {
+      const pid = Number(prod.id ?? NaN)
+      const precio = Number(prod.precio ?? 0)
+      if (Number.isFinite(pid)) preciosPorProducto[pid] = precio
+    }
+  } catch (e) {}
+}
+
+function prevTurnoFecha(fecha, turno) {
+  if (turno > 1) return { turno: turno - 1, fecha }
+  const d = new Date(fecha)
+  d.setDate(d.getDate() - 1)
+  const prevDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+  return { turno: 3, fecha: prevDate }
+}
+
+async function loadDifLecturas() {
   if (!estacionId) return
   try {
-    const res = await bombaService.getLecturasManualUltimas(estacionId, fechaSeleccionada.value, turnoSeleccionado.value)
+    const res = await bombaService.getLecturasManualDiferencias(estacionId, fechaSeleccionada.value, turnoSeleccionado.value)
     const list = res.success ? (Array.isArray(res.data) ? res.data : []) : []
     for (const it of list) {
       const key = `${it.estacion_id}:${it.producto_id}:${String(it.numero_bomba)}`
-      const lectura = Number(it.cantidad ?? it.lectura ?? it.final ?? 0)
-      lecturasUltimas[key] = lectura
-      if (!(key in encargadoInputs)) encargadoInputs[key] = 0
+      difLecturasApi[key] = Number(it.dif_lecturas ?? 0)
     }
   } catch (e) {}
 }
 
 watch([fechaSeleccionada, turnoSeleccionado], async () => {
-  await loadUltimas()
+  await loadDifLecturas()
 })
+
+watch(fechaSeleccionada, () => {
+  resetEncargadoTotales()
+})
+function resetEncargadoTotales() {
+  encargadoTotales[1] = 0
+  encargadoTotales[2] = 0
+  encargadoTotales[3] = 0
+}
 
 watch(selectedProduct, () => {
   // no-op, UI re-computa totals automáticamente
@@ -239,7 +346,8 @@ watch(selectedProduct, () => {
 
 onMounted(async () => {
   await loadBombas()
-  await loadUltimas()
+  await loadPrecios()
+  await loadDifLecturas()
 })
 </script>
 
@@ -247,11 +355,27 @@ onMounted(async () => {
 .pump-card { padding-bottom: 8px; }
 .pump-card :deep(.v-field__input) { font-size: 1.05rem; }
 
-.bottom-actions {
+.section-title { font-weight: 600; opacity: 0.9; margin-bottom: 4px; }
+.product-tabs :deep(.v-tab) { text-transform: none; }
+
+.summary-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.encargado-inputs { margin-bottom: 8px; }
+.totals-grid { margin-bottom: 8px; }
+.totals-title { font-weight: 600; margin-bottom: 4px; }
+.totals-line { font-size: 0.95rem; opacity: 0.9; }
+
+.sticky-first-col :deep(th:first-child),
+.sticky-first-col :deep(td:first-child) {
   position: sticky;
-  bottom: 0;
-  z-index: 2;
+  left: 0;
   background: #2d2d2d;
-  padding: 8px 0 12px;
+  z-index: 1;
 }
 </style>

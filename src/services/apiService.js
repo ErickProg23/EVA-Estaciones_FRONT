@@ -950,6 +950,21 @@ export const bombaService = {
       console.error('Error en getLecturasManualUltimas:', error)
       return { success: false, data: [], message: error.response?.data?.message || error.message || 'Error de conexión' }
     }
+  },
+
+  async getLecturasManualDiferencias(estacionId, fecha, turno) {
+    try {
+      const params = new URLSearchParams()
+      if (fecha) params.append('fecha', fecha)
+      if (turno != null) params.append('turno', turno)
+      const url = `/api/getLecturasManualDiferencias/${estacionId}${params.toString() ? '?' + params.toString() : ''}`
+      const response = await apiClient.get(url)
+      const data = Array.isArray(response.data) ? response.data : response.data.lecturas || []
+      return { success: true, data, message: 'Lecturas diferencias obtenidas' }
+    } catch (error) {
+      console.error('Error en getLecturasManualDiferencias:', error)
+      return { success: false, data: [], message: error.response?.data?.message || error.message || 'Error de conexión' }
+    }
   }
 }
 export default apiClient

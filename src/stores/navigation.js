@@ -6,7 +6,7 @@ export const useNavigationStore = defineStore('navigation', () => {
   const drawer = ref(false)
   const rail = ref(false)
   const currentModule = ref('dashboard')
-  const expandedGroups = ref(['administration', 'reports']) // Grupos expandidos por defecto
+  const expandedGroups = ref(['administration', 'reports', 'manuales']) // Grupos expandidos por defecto
   
   // ✅ AGREGAR: Variable reactiva para el rol del usuario
   const currentUserRole = ref(null)
@@ -112,28 +112,36 @@ export const useNavigationStore = defineStore('navigation', () => {
       ]
     },
     {
-      title: 'Productos',
-      icon: 'mdi-oil',
-      value: 'productos',
-      route: '/productos',
-      type: 'item',
-      allowedRoles: ['ADMIN', 'Encargado']
-    },
-    {
       title: 'Manuales',
-      icon: 'mdi-file-document',
+      icon: 'mdi-file-document-multiple',
       value: 'manuales',
-      route: '/manuales/subir',
-      type: 'item',
-      allowedRoles: ['ADMIN', 'Mantenimiento']
-    },
-    {
-      title: 'Lecturas Comparativas',
-      icon: 'mdi-clipboard-list',
-      value: 'lecturasComparativas',
-      route: '/manuales/comparativas',
-      type: 'item',
-      allowedRoles: ['ADMIN', 'Encargado']
+      type: 'group',
+      children: [
+        {
+          title: 'Lecturas comparativas',
+          icon: 'mdi-clipboard-list',
+          value: 'manuales-comparativas',
+          route: '/manuales/comparativas',
+          type: 'item',
+          allowedRoles: ['ADMIN', 'Encargado']
+        },
+        {
+          title: 'Productos',
+          icon: 'mdi-oil',
+          value: 'manuales-productos',
+          route: '/productos',
+          type: 'item',
+          allowedRoles: ['ADMIN', 'Encargado']
+        },
+        {
+          title: 'Lecturas manuales',
+          icon: 'mdi-file-document',
+          value: 'manuales-subir',
+          route: '/manuales/subir',
+          type: 'item',
+          allowedRoles: ['Mantenimiento']
+        }
+      ]
     }
   ])
 

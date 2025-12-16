@@ -10,15 +10,31 @@
         <div class="sticky-controls">
           <v-row>
             <v-col cols="12" md="6">
-              <v-text-field
-                v-model="fechaSeleccionada"
-                type="date"
-                label="Fecha"
-                :max="todayStr"
-                variant="outlined"
-                density="comfortable"
-                hide-details="auto"
-              />
+              <v-menu
+                v-model="menuFecha"
+                :close-on-content-click="false"
+                transition="scale-transition"
+                offset-y
+              >
+                <template #activator="{ props }">
+                  <v-text-field
+                    v-bind="props"
+                    :model-value="fechaSeleccionada"
+                    label="Fecha"
+                    variant="outlined"
+                    density="comfortable"
+                    hide-details="auto"
+                    readonly
+                    prepend-inner-icon="mdi-calendar"
+                  />
+                </template>
+                <v-date-picker
+                  v-model="pickerFecha"
+                  :max="todayStr"
+                  color="green"
+                  @update:modelValue="val => { fechaSeleccionada = toYMD(val); menuFecha = false }"
+                />
+              </v-menu>
             </v-col>
             <v-col cols="12" md="6">
               <v-select
@@ -64,9 +80,9 @@
                   readonly
                 />
                 <v-text-field
-                  v-model.number="pumpStates[pumpKey(pump)].final"
-                  type="number"
-                  inputmode="decimal"
+                  v-model="pumpStates[pumpKey(pump)].final"
+                  type="text"
+                  inputmode="numeric"
                   label="Final"
                   variant="outlined"
                   density="comfortable"
@@ -121,11 +137,15 @@ const todayStr = new Date().toISOString().split('T')[0]
 const turnos = [1, 2, 3]
 
 const fechaSeleccionada = ref(todayStr)
+const menuFecha = ref(false)
+const pickerFecha = ref(new Date())
 const turnoSeleccionado = ref(1)
 const guardando = ref(false)
 const mensaje = ref({ text: '', type: 'success', icon: 'mdi-check-circle' })
+let messageTimer = null
 
 const usuarioId = sessionStorage.getItem('usuario_id')
+const estacionId = sessionStorage.getItem('estacion_id')
 
 const pumps = ref([])
 
@@ -141,6 +161,16 @@ function normalizeProducto(prod) {
   if (name.includes('premium')) return 'Premium'
   if (name.includes('diesel')) return 'Diesel'
   return 'Magna'
+}
+
+function productoIdFromPump(p) {
+  const id = Number(p?.producto?.id ?? p?.producto_id ?? NaN)
+  if (Number.isFinite(id)) return id
+  const name = normalizeProducto(p?.producto)
+  if (name === 'Magna') return 1
+  if (name === 'Premium') return 2
+  if (name === 'Diesel') return 3
+  return NaN
 }
 
 const pumpsByProduct = computed(() => {
@@ -163,6 +193,21 @@ function ensurePumpState(key) {
   if (!pumpStates[key]) pumpStates[key] = { inicio: 0, final: null }
 }
 
+const prevLecturas = reactive({})
+async function loadPrevLecturas() {
+  if (!estacionId) return
+  const { turno: prevTurno, fecha: prevFechaStr } = prevTurnoFecha(fechaSeleccionada.value, turnoSeleccionado.value)
+  try {
+    const res = await bombaService.getLecturasManualUltimas(estacionId, prevFechaStr, prevTurno)
+    const list = res.success ? (Array.isArray(res.data) ? res.data : []) : []
+    for (const it of list) {
+      const key = `${it.estacion_id}:${it.producto_id}:${String(it.numero_bomba)}`
+      const lectura = Number(it.cantidad ?? it.lectura ?? it.final ?? 0)
+      prevLecturas[key] = lectura
+    }
+  } catch {}
+}
+
 function pumpKey(p) {
   const productoId = Number(p?.producto?.id ?? p?.producto_id ?? NaN)
   const estacionId = Number(p?.estacion_id ?? NaN)
@@ -174,6 +219,18 @@ function pumpLabel(p) {
   return p.numero_bomba ? `Bomba ${p.numero_bomba}` : (p.nombre || p.numero_bomba || p.id)
 }
 
+function numeroVisibleBomba(p) {
+  const primary = Number(p?.numero_bomba)
+  if (Number.isFinite(primary)) return primary
+  const alt = Number(p?.numero ?? p?.num ?? NaN)
+  if (Number.isFinite(alt)) return alt
+  const name = String(p?.nombre ?? '')
+  const m = name.match(/\d+/)
+  if (m) return Number(m[0])
+  const idNum = Number(p?.id ?? NaN)
+  return Number.isFinite(idNum) ? idNum : NaN
+}
+
 // Producto seleccionado para pestañas
 const selectedProduct = ref('Magna')
 
@@ -181,6 +238,25 @@ const selectedProduct = ref('Magna')
 function formatNumber(val) {
   const n = Number(val ?? 0)
   return n.toFixed(2)
+}
+
+function parseLectura(val) {
+  const s = String(val ?? '').replace(/[\,\s]/g, '')
+  const n = Number(s)
+  return Number.isFinite(n) ? n : NaN
+}
+
+function toYMD(val) {
+  try {
+    const d = val instanceof Date ? val : new Date(val)
+    if (Number.isNaN(d.getTime())) return todayStr
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  } catch {
+    return todayStr
+  }
 }
 
 function keyLSPump(pump, fecha, turno) {
@@ -207,6 +283,11 @@ function cargarPrevLecturaPump(pump, fecha, turno) {
 function recalcularInicioPump(pump) {
   const key = pumpKey(pump)
   ensurePumpState(key)
+  const prevVal = prevLecturas[key]
+  if (Number.isFinite(prevVal)) {
+    pumpStates[key].inicio = Number(prevVal)
+    return
+  }
   const prev = cargarPrevLecturaPump(pump, fechaSeleccionada.value, turnoSeleccionado.value)
   pumpStates[key].inicio = prev?.final ?? 0
 }
@@ -220,52 +301,11 @@ function recalcularInicioAll() {
 
 function getFinalError(pumpNumero) {
   ensurePumpState(pumpNumero)
-  const val = pumpStates[pumpNumero].final
-  if (val == null || val === '') return []
-  const n = Number(val)
-  if (Number.isNaN(n)) return ['Debe ser un número']
-  if (n < pumpStates[pumpNumero].inicio) return ['El final no puede ser menor que el inicio']
+  const raw = pumpStates[pumpNumero].final
+  if (raw == null || raw === '') return []
+  const n = parseLectura(raw)
+  if (!Number.isFinite(n)) return ['Debe ser un número']
   return []
-}
-
-
-
-async function guardarLecturaPump(pump) {
-  ensurePumpState(pumpKey(pump))
-  mensaje.value.text = ''
-  const errors = getFinalError(pumpKey(pump))
-  if (errors.length) {
-    mensaje.value = { text: errors[0], type: 'error', icon: 'mdi-alert-circle' }
-    return
-  }
-  guardando.value = true
-  try {
-    const base = {
-      lectura: Number(pumpStates[pumpKey(pump)].final),
-      fecha: fechaSeleccionada.value,
-      turno: turnoSeleccionado.value,
-      estacion_id: pump.estacion_id,
-      numero_bomba: pump.numero_bomba
-    }
-    const producto_id = Number(pump?.producto?.id ?? pump?.producto_id)
-    let res = await bombaService.guardarLecturaManual({ ...base, producto_id })
-    const errTxt = String(res?.data?.error || res?.message || '')
-    if (!res.success && (errTxt.includes('producto_id') || errTxt.includes('unexpected'))) {
-      res = await bombaService.guardarLecturaManual({ ...base, producto: normalizeProducto(pump.producto) })
-    }
-    if (res.success) {
-      localStorage.setItem(keyLSPump(pump, base.fecha, base.turno), JSON.stringify({ ...base, producto_id }))
-      mensaje.value = { text: `Lectura guardada`, type: 'success', icon: 'mdi-check-circle' }
-      recalcularInicioPump(pump)
-    } else {
-      mensaje.value = { text: res.message || 'Error al guardar la lectura', type: 'error', icon: 'mdi-alert-circle' }
-    }
-  } catch (err) {
-    console.error(err)
-    mensaje.value = { text: 'Error al guardar la lectura', type: 'error', icon: 'mdi-alert-circle' }
-  } finally {
-    guardando.value = false
-  }
 }
 
 const productoStats = computed(() => {
@@ -275,9 +315,9 @@ const productoStats = computed(() => {
   for (const p of arr) {
     const key = pumpKey(p)
     ensurePumpState(key)
-    const val = pumpStates[key].final
-    const n = Number(val)
-    if (val == null || val === '' || !Number.isFinite(n) || n <= 0) faltantes++
+    const raw = pumpStates[key].final
+    const n = parseLectura(raw)
+    if (raw == null || raw === '' || !Number.isFinite(n) || n <= 0) faltantes++
     else if (getFinalError(key).length) errores++
   }
   return { total: arr.length, faltantes, errores }
@@ -307,13 +347,13 @@ async function guardarLecturasProducto() {
     try {
       const key = pumpKey(pump)
       const base = {
-        lectura: Number(pumpStates[key].final),
+        lectura: parseLectura(pumpStates[key].final),
         fecha: fechaSeleccionada.value,
         turno: turnoSeleccionado.value,
         estacion_id: pump.estacion_id,
-        numero_bomba: pump.numero_bomba
+        numero_bomba: numeroVisibleBomba(pump)
       }
-      const producto_id = Number(pump?.producto?.id ?? pump?.producto_id)
+      const producto_id = productoIdFromPump(pump)
       let res = await bombaService.guardarLecturaManual({ ...base, producto_id })
       const errTxt = String(res?.data?.error || res?.message || '')
       if (!res.success && (errTxt.includes('producto_id') || errTxt.includes('unexpected'))) {
@@ -326,14 +366,17 @@ async function guardarLecturasProducto() {
       } else {
         fail++
       }
-    } catch {
+    } catch (e) {
+      console.error('Error guardando lectura', e)
       fail++
     }
   }
   if (fail === 0) {
     mensaje.value = { text: `Guardadas ${ok} lecturas de ${selectedProduct.value}`, type: 'success', icon: 'mdi-check-circle' }
+    if (messageTimer) clearTimeout(messageTimer)
+    messageTimer = setTimeout(() => { mensaje.value.text = '' }, 7000)
   } else {
-    mensaje.value = { text: `Se guardaron ${ok} lecturas y fallaron ${fail}`, type: 'error', icon: 'mdi-alert-circle' }
+    mensaje.value = { text: `Se guardaron ${ok} lecturas y fallaron ${fail}. Verifica producto y número de bomba.`, type: 'error', icon: 'mdi-alert-circle' }
   }
   guardando.value = false
 }
@@ -354,12 +397,13 @@ async function loadBombas() {
   }
 }
 
-watch([fechaSeleccionada, turnoSeleccionado], () => {
+watch([fechaSeleccionada, turnoSeleccionado], async () => {
   pumps.value.forEach(p => {
     const key = pumpKey(p)
     ensurePumpState(key)
     pumpStates[key].final = 0
   })
+  await loadPrevLecturas()
   recalcularInicioAll()
 })
 
@@ -368,8 +412,10 @@ watch(selectedProduct, () => {
   recalcularInicioAll()
 })
 
-onMounted(() => {
-  loadBombas()
+onMounted(async () => {
+  await loadBombas()
+  await loadPrevLecturas()
+  recalcularInicioAll()
 })
 </script>
 
