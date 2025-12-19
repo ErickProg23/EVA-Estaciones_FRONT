@@ -27,6 +27,7 @@
                 v-model="pickerFecha"
                 :max="todayStr"
                 color="green"
+                hide-header
                 @update:modelValue="val => { fechaSeleccionada = toYMD(val); menuFecha = false }"
               />
             </v-menu>
@@ -50,11 +51,11 @@
           <v-tab value="Diesel">Diesel</v-tab>
         </v-tabs>
 
-        <v-row class="mb-2 encargado-inputs">
+        <v-row class="mb-2 nexus-inputs">
           <v-col cols="12" md="4">
             <v-text-field
-              v-model.number="encargadoTotales[1]"
-              label="Encargado total $ — Magna"
+              v-model.number="nexusTotales[1]"
+              label="Nexus total $ — Magna"
               type="number"
               variant="outlined"
               density="compact"
@@ -63,8 +64,8 @@
           </v-col>
           <v-col cols="12" md="4">
             <v-text-field
-              v-model.number="encargadoTotales[2]"
-              label="Encargado total $ — Premium"
+              v-model.number="nexusTotales[2]"
+              label="Nexus total $ — Premium"
               type="number"
               variant="outlined"
               density="compact"
@@ -73,8 +74,8 @@
           </v-col>
           <v-col cols="12" md="4">
             <v-text-field
-              v-model.number="encargadoTotales[3]"
-              label="Encargado total $ — Diesel"
+              v-model.number="nexusTotales[3]"
+              label="Nexus total $ — Diesel"
               type="number"
               variant="outlined"
               density="compact"
@@ -83,20 +84,58 @@
           </v-col>
         </v-row>
 
-        <v-row class="mb-2 totals-grid">
-          <v-col cols="12" md="6">
-            <v-card variant="tonal" color="info" class="pa-3">
-              <div class="totals-title">Totales producto</div>
-              <div class="totals-line">Lecturas: {{ formatNumber(totalDifLecturas) }} | $: $ {{ formatMoney(totalDifPesosProducto) }}</div>
-              <div class="totals-line">Diferencia $: $ {{ formatMoney(diferenciaPesosProducto) }}</div>
+        <v-row class="mb-2 justify-end">
+          <v-col cols="auto">
+            <v-btn color="primary" @click="saveTotals" prepend-icon="mdi-content-save">
+              Guardar Totales
+            </v-btn>
+          </v-col>
+        </v-row>
+
+        <v-row class="mb-2" align="stretch">
+          <v-col cols="12" md="4">
+            <v-card variant="tonal" color="info" class="pa-4 h-100 d-flex flex-column justify-center">
+              <div class="text-subtitle-1 font-weight-bold mb-2">
+                <v-icon start icon="mdi-gas-station" size="small"></v-icon>
+                Totales {{ selectedProduct }}
+              </div>
+              <div class="d-flex justify-space-between align-center mb-1">
+                <span class="text-body-2">Dif. Lecturas</span>
+                <span class="text-h6">{{ formatNumber(totalDifLecturas) }}</span>
+              </div>
+              <div class="d-flex justify-space-between align-center">
+                <span class="text-body-2">Importe ($)</span>
+                <span class="text-h6">$ {{ formatMoney(totalDifPesosProducto) }}</span>
+              </div>
             </v-card>
           </v-col>
-          <v-col cols="12" md="6">
-            <v-card variant="tonal" color="success" class="pa-3">
-              <div class="totals-title">Totales globales</div>
-              <div class="totals-line">Lecturas: {{ formatNumber(totalDifLecturasAll) }} | $: $ {{ formatMoney(totalDifPesosGlobal) }}</div>
-              <div class="totals-line">Encargado total $: $ {{ formatMoney(encargadoTotalGlobal) }}</div>
-              <div class="totals-line">Diferencia $: $ {{ formatMoney(diferenciaPesosGlobal) }}</div>
+
+          <v-col cols="12" md="8">
+            <v-card variant="tonal" color="success" class="pa-4 h-100">
+              <div class="text-subtitle-1 font-weight-bold mb-3">
+                <v-icon start icon="mdi-chart-box-outline" size="small"></v-icon>
+                Totales Globales
+              </div>
+              <v-row dense>
+                <v-col cols="6" sm="3">
+                  <div class="text-caption text-uppercase opacity-70">Lecturas</div>
+                  <div class="text-h6">{{ formatNumber(totalDifLecturasAll) }}</div>
+                </v-col>
+                <v-col cols="6" sm="3">
+                  <div class="text-caption text-uppercase opacity-70">Importe ($)</div>
+                  <div class="text-h6">$ {{ formatMoney(totalDifPesosGlobal) }}</div>
+                </v-col>
+                <v-col cols="6" sm="3">
+                  <div class="text-caption text-uppercase opacity-70">Nexus</div>
+                  <div class="text-h6">$ {{ formatMoney(nexusTotalGlobal) }}</div>
+                </v-col>
+                <v-col cols="6" sm="3">
+                  <div class="text-caption text-uppercase opacity-70">Diferencia</div>
+                  <div class="text-h6 font-weight-bold" :class="diferenciaPesosGlobal < 0 ? 'text-red-accent-2' : ''">
+                    $ {{ formatMoney(diferenciaPesosGlobal) }}
+                  </div>
+                </v-col>
+              </v-row>
             </v-card>
           </v-col>
         </v-row>
@@ -109,6 +148,7 @@
           class="transparent sticky-first-col"
           density="compact"
           hide-default-footer
+          :items-per-page="-1"
         >
           <template #item.bomba="{ item }">
             {{ labelPump(item) }}
@@ -158,7 +198,7 @@ const mensaje = ref({ text: '', type: 'info', icon: 'mdi-information' })
 const bombas = ref([])
 const difLecturasApi = reactive({})       // key -> número (API)
 const preciosPorProducto = reactive({ 1: 0, 2: 0, 3: 0 })
-const encargadoTotales = reactive({ 1: 0, 2: 0, 3: 0 })
+const nexusTotales = reactive({ 1: 0, 2: 0, 3: 0 })
 
 function formatMoney(val) {
   const n = Number(val ?? 0)
@@ -173,11 +213,6 @@ const selectedProductId = computed(() => {
 const precioSeleccionado = computed(() => precioProductoId(selectedProductId.value))
 const totalDifPesosProducto = computed(() => totalDifLecturas.value * precioSeleccionado.value)
 
-const diferenciaPesosProducto = computed(() => {
-  const enc = Number(encargadoTotales[selectedProductId.value] ?? 0)
-  return enc - totalDifPesosProducto.value
-})
-
 const totalDifPesosGlobal = computed(() => {
   let sum = 0
   for (const p of bombas.value) {
@@ -187,10 +222,10 @@ const totalDifPesosGlobal = computed(() => {
   return sum
 })
 
-const encargadoTotalGlobal = computed(() => {
-  return Number(encargadoTotales[1] ?? 0) + Number(encargadoTotales[2] ?? 0) + Number(encargadoTotales[3] ?? 0)
+const nexusTotalGlobal = computed(() => {
+  return Number(nexusTotales[1] ?? 0) + Number(nexusTotales[2] ?? 0) + Number(nexusTotales[3] ?? 0)
 })
-const diferenciaPesosGlobal = computed(() => encargadoTotalGlobal.value - totalDifPesosGlobal.value)
+const diferenciaPesosGlobal = computed(() => nexusTotalGlobal.value - totalDifPesosGlobal.value)
 
 function normalizeProductoName(prod) {
   const id = typeof prod === 'object' && prod !== null ? Number(prod.id ?? NaN) : typeof prod === 'number' ? prod : NaN
@@ -320,6 +355,9 @@ async function loadDifLecturas() {
   try {
     const res = await bombaService.getLecturasManualDiferencias(estacionId, fechaSeleccionada.value, turnoSeleccionado.value)
     const list = res.success ? (Array.isArray(res.data) ? res.data : []) : []
+    // Reset difLecturasApi before filling
+    Object.keys(difLecturasApi).forEach(k => delete difLecturasApi[k])
+    
     for (const it of list) {
       const key = `${it.estacion_id}:${it.producto_id}:${String(it.numero_bomba)}`
       difLecturasApi[key] = Number(it.dif_lecturas ?? 0)
@@ -327,17 +365,87 @@ async function loadDifLecturas() {
   } catch (e) {}
 }
 
+async function loadNexusTotales() {
+  if (!estacionId) return
+  try {
+    const res = await bombaService.getComparativaTotales(estacionId, fechaSeleccionada.value, turnoSeleccionado.value)
+    if (res.success && res.detalles) {
+      nexusTotales[1] = res.detalles['1']?.nexus || 0
+      nexusTotales[2] = res.detalles['2']?.nexus || 0
+      nexusTotales[3] = res.detalles['3']?.nexus || 0
+      
+      // Restore saved prices to ensure historical accuracy
+      if (res.detalles['1']?.precio) preciosPorProducto[1] = res.detalles['1'].precio
+      if (res.detalles['2']?.precio) preciosPorProducto[2] = res.detalles['2'].precio
+      if (res.detalles['3']?.precio) preciosPorProducto[3] = res.detalles['3'].precio
+    } else if (res.success && res.nexus_totales) {
+      nexusTotales[1] = res.nexus_totales['1'] || 0
+      nexusTotales[2] = res.nexus_totales['2'] || 0
+      nexusTotales[3] = res.nexus_totales['3'] || 0
+    } else {
+      resetNexusTotales()
+    }
+  } catch (e) {
+    resetNexusTotales()
+  }
+}
+
+async function saveTotals() {
+  if (!estacionId) return
+  
+  const detalles = {}
+  
+  const getDifLect = (pid) => {
+    let sum = 0
+    for (const p of bombas.value) {
+        if (productoId(p) === pid) {
+            sum += diferenciaLecturasPump(keyPump(p))
+        }
+    }
+    return sum
+  }
+
+  for (const pid of [1, 2, 3]) {
+      const difLect = getDifLect(pid)
+      const precio = Number(preciosPorProducto[pid] ?? 0)
+      const difPesos = difLect * precio
+      const nexus = Number(nexusTotales[pid] ?? 0)
+
+      detalles[pid] = {
+          nexus: nexus,
+          dif_lect: difLect,
+          precio: precio,
+          dif_pesos: difPesos
+      }
+  }
+
+  const data = {
+    estacion_id: estacionId,
+    fecha: fechaSeleccionada.value,
+    turno: turnoSeleccionado.value,
+    detalles: detalles
+  }
+
+  const res = await bombaService.saveComparativaTotales(data)
+  if (res.success) {
+    mensaje.value = { text: 'Totales guardados correctamente', type: 'success', icon: 'mdi-check' }
+  } else {
+    mensaje.value = { text: res.message || 'Error al guardar', type: 'error', icon: 'mdi-alert' }
+  }
+}
+
 watch([fechaSeleccionada, turnoSeleccionado], async () => {
   await loadDifLecturas()
+  await loadNexusTotales()
 })
 
 watch(fechaSeleccionada, () => {
-  resetEncargadoTotales()
+  // Removed resetNexusTotales here as it's handled in the combined watcher above
 })
-function resetEncargadoTotales() {
-  encargadoTotales[1] = 0
-  encargadoTotales[2] = 0
-  encargadoTotales[3] = 0
+function resetNexusTotales() {
+  nexusTotales[1] = 0
+  nexusTotales[2] = 0
+  nexusTotales[3] = 0
 }
 
 watch(selectedProduct, () => {
@@ -348,6 +456,7 @@ onMounted(async () => {
   await loadBombas()
   await loadPrecios()
   await loadDifLecturas()
+  await loadNexusTotales()
 })
 </script>
 
@@ -366,7 +475,7 @@ onMounted(async () => {
   margin-bottom: 8px;
 }
 
-.encargado-inputs { margin-bottom: 8px; }
+.nexus-inputs { margin-bottom: 8px; }
 .totals-grid { margin-bottom: 8px; }
 .totals-title { font-weight: 600; margin-bottom: 4px; }
 .totals-line { font-size: 0.95rem; opacity: 0.9; }

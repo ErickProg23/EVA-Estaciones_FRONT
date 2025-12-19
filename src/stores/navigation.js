@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { title } from 'process'
 import { ref, computed } from 'vue'
 
 export const useNavigationStore = defineStore('navigation', () => {
@@ -140,6 +141,31 @@ export const useNavigationStore = defineStore('navigation', () => {
           route: '/manuales/subir',
           type: 'item',
           allowedRoles: ['Mantenimiento']
+        }
+      ]
+    },
+    {
+      title: 'Solicitudes',
+      icon: 'mdi-clipboard-check',
+      value: 'solicitudes-group',
+      type: 'group',
+      allowedRoles: ['ADMIN', 'Encargado'],
+      children: [
+        {
+          title: 'Mis Solicitudes',
+          icon: 'mdi-clipboard-list',
+          value: 'solicitudes',
+          route: '/solicitudes',
+          type: 'item',
+          allowedRoles: ['ADMIN', 'Encargado']
+        },
+        {
+          title: 'Gestión de Materiales',
+          icon: 'mdi-package-variant-closed',
+          value: 'admin-materiales',
+          route: '/admin/materiales',
+          type: 'item',
+          allowedRoles: ['ADMIN']
         }
       ]
     }

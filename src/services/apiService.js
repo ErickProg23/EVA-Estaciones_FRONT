@@ -965,6 +965,182 @@ export const bombaService = {
       console.error('Error en getLecturasManualDiferencias:', error)
       return { success: false, data: [], message: error.response?.data?.message || error.message || 'Error de conexión' }
     }
+  },
+
+  async saveComparativaTotales(data) {
+    try {
+      const response = await apiClient.post('/api/saveComparativaTotales', data)
+      return { success: response.data?.success ?? true, message: response.data?.message || 'Totales guardados correctamente' }
+    } catch (error) {
+      console.error('Error en saveComparativaTotales:', error)
+      return { success: false, message: error.response?.data?.message || error.message || 'Error de conexión' }
+    }
+  },
+
+  async getComparativaTotales(estacionId, fecha, turno) {
+    try {
+      const params = new URLSearchParams()
+      if (fecha) params.append('fecha', fecha)
+      if (turno) params.append('turno', turno)
+      const url = `/api/getComparativaTotales/${estacionId}${params.toString() ? '?' + params.toString() : ''}`
+      const response = await apiClient.get(url)
+      return { success: true, nexus_totales: response.data.nexus_totales || {}, detalles: response.data.detalles || {}, message: 'Totales obtenidos' }
+    } catch (error) {
+      console.error('Error en getComparativaTotales:', error)
+      return { success: false, nexus_totales: {}, detalles: {}, message: error.response?.data?.message || error.message || 'Error de conexión' }
+    }
+  }
+}
+
+export const materialService = {
+  // Obtener todos los materiales
+  async getMateriales() {
+    try {
+      const response = await apiClient.get('/api/materiales/obtener')
+      return {
+        success: true,
+        data: response.data,
+        message: 'Materiales obtenidos correctamente'
+      }
+    } catch (error) {
+      console.error('Error en getMateriales:', error)
+      return {
+        success: false,
+        data: [],
+        message: error.response?.data?.message || error.message || 'Error de conexión'
+      }
+    }
+  },
+
+  // Crear nuevo material
+  async createMaterial(materialData) {
+    try {
+      const response = await apiClient.post('/api/materiales/crear', materialData)
+      return {
+        success: true,
+        data: response.data,
+        message: response.data.message || 'Material creado correctamente'
+      }
+    } catch (error) {
+      console.error('Error en createMaterial:', error)
+      return {
+        success: false,
+        message: error.response?.data?.message || error.message || 'Error al crear material'
+      }
+    }
+  },
+
+  // Obtener materiales asignados a una estación
+  async getMaterialesEstacion(estacionId) {
+    try {
+      const response = await apiClient.get(`/api/materiales/estacion/${estacionId}`)
+      return {
+        success: true,
+        data: response.data,
+        message: 'Materiales de estación obtenidos correctamente'
+      }
+    } catch (error) {
+      console.error('Error en getMaterialesEstacion:', error)
+      return {
+        success: false,
+        data: [],
+        message: error.response?.data?.message || error.message || 'Error de conexión'
+      }
+    }
+  },
+
+  // Asignar material a estación
+  async asignarMaterial(data) {
+    try {
+      const response = await apiClient.post('/api/materiales/asignar', data)
+      return {
+        success: true,
+        data: response.data,
+        message: response.data.message || 'Material asignado correctamente'
+      }
+    } catch (error) {
+      console.error('Error en asignarMaterial:', error)
+      return {
+        success: false,
+        message: error.response?.data?.message || error.message || 'Error al asignar material'
+      }
+    }
+  },
+
+  // Desasignar material de estación
+  async desasignarMaterial(data) {
+    try {
+      const response = await apiClient.post('/api/materiales/desasignar', data)
+      return {
+        success: true,
+        data: response.data,
+        message: response.data.message || 'Material desasignado correctamente'
+      }
+    } catch (error) {
+      console.error('Error en desasignarMaterial:', error)
+      return {
+        success: false,
+        message: error.response?.data?.message || error.message || 'Error al desasignar material'
+      }
+    }
+  }
+}
+
+export const solicitudesService = {
+  // Crear nueva solicitud
+  async createSolicitud(solicitudData) {
+    try {
+      const response = await apiClient.post('/api/solicitudes/crear', solicitudData)
+      return {
+        success: true,
+        data: response.data,
+        message: response.data.message || 'Solicitud creada correctamente'
+      }
+    } catch (error) {
+      console.error('Error en createSolicitud:', error)
+      return {
+        success: false,
+        message: error.response?.data?.message || error.message || 'Error al crear solicitud'
+      }
+    }
+  },
+
+  // Obtener solicitudes (con filtros opcionales)
+  async getSolicitudes(filtros = {}) {
+    try {
+      const params = new URLSearchParams(filtros)
+      const response = await apiClient.get(`/api/solicitudes?${params.toString()}`)
+      return {
+        success: true,
+        data: Array.isArray(response.data) ? response.data : response.data.solicitudes || [],
+        message: 'Solicitudes obtenidas correctamente'
+      }
+    } catch (error) {
+      console.error('Error en getSolicitudes:', error)
+      return {
+        success: false,
+        data: [],
+        message: error.response?.data?.message || error.message || 'Error al obtener solicitudes'
+      }
+    }
+  },
+
+  // Actualizar estado de solicitud
+  async updateSolicitudStatus(id, estado, comentarios = '') {
+    try {
+      const response = await apiClient.put(`/api/solicitudes/${id}/estado`, { estado, comentarios })
+      return {
+        success: true,
+        data: response.data,
+        message: response.data.message || 'Estado actualizado correctamente'
+      }
+    } catch (error) {
+      console.error('Error en updateSolicitudStatus:', error)
+      return {
+        success: false,
+        message: error.response?.data?.message || error.message || 'Error al actualizar estado'
+      }
+    }
   }
 }
 export default apiClient

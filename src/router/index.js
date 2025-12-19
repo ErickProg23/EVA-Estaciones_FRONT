@@ -15,6 +15,8 @@ import SubirManualView from '@/views/SubirManualView.vue'
 import ProductosView from '@/views/ProductosView.vue'
 import BombasView from '@/views/BombasView.vue'
 import LecturasComparativasView from '@/views/LecturasComparativasView.vue'
+import SolicitudesView from '@/views/SolicitudesView.vue'
+import AdminMaterialView from '@/views/AdminMaterialView.vue'
 
 
 
@@ -131,6 +133,18 @@ const routes = [
     name: 'lecturasComparativas',
     component: LecturasComparativasView,
     meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Encargado'] }
+  },
+  {
+    path: '/solicitudes',
+    name: 'solicitudes',
+    component: SolicitudesView,
+    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Encargado'] }
+  },
+  {
+    path: '/admin/materiales',
+    name: 'admin-materiales',
+    component: AdminMaterialView,
+    meta: { requiresAuth: true, allowedRoles: ['ADMIN'] }
   }
 ]
 
