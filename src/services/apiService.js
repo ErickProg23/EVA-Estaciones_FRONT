@@ -1083,6 +1083,24 @@ export const materialService = {
         message: error.response?.data?.message || error.message || 'Error al desasignar material'
       }
     }
+  },
+
+  // Actualizar stock de material en estación
+  async updateStock(data) {
+    try {
+      const response = await apiClient.put('/api/materiales/stock', data)
+      return {
+        success: true,
+        data: response.data,
+        message: response.data.message || 'Stock actualizado correctamente'
+      }
+    } catch (error) {
+      console.error('Error en updateStock:', error)
+      return {
+        success: false,
+        message: error.response?.data?.message || error.message || 'Error al actualizar stock'
+      }
+    }
   }
 }
 
@@ -1105,11 +1123,10 @@ export const solicitudesService = {
     }
   },
 
-  // Obtener solicitudes (con filtros opcionales)
-  async getSolicitudes(filtros = {}) {
+  // Obtener solicitudes
+  async getSolicitudes() {
     try {
-      const params = new URLSearchParams(filtros)
-      const response = await apiClient.get(`/api/solicitudes?${params.toString()}`)
+      const response = await apiClient.get('/api/solicitudes')
       return {
         success: true,
         data: Array.isArray(response.data) ? response.data : response.data.solicitudes || [],

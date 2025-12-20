@@ -144,7 +144,7 @@ const routes = [
     path: '/admin/materiales',
     name: 'admin-materiales',
     component: AdminMaterialView,
-    meta: { requiresAuth: true, allowedRoles: ['ADMIN'] }
+    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Encargado'] }
   }
 ]
 

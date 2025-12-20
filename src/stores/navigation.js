@@ -165,7 +165,7 @@ export const useNavigationStore = defineStore('navigation', () => {
           value: 'admin-materiales',
           route: '/admin/materiales',
           type: 'item',
-          allowedRoles: ['ADMIN']
+          allowedRoles: ['ADMIN', 'Encargado']
         }
       ]
     }

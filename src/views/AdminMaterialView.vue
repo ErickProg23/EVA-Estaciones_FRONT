@@ -11,6 +11,7 @@
             <p class="text-grey-400 ma-0">Administración de catálogo y asignación de materiales</p>
           </div>
           <v-btn 
+            v-if="isAdmin"
             color="primary" 
             class="text-none"
             @click="openCreateDialog"
@@ -37,6 +38,7 @@
             <template #item.acciones="{ item }">
               <div class="d-flex">
                 <v-btn
+                  v-if="isAdmin"
                   icon
                   variant="text"
                   size="small"
@@ -48,6 +50,18 @@
                   <v-icon>mdi-pencil</v-icon>
                 </v-btn>
                 <v-btn
+                  icon
+                  variant="text"
+                  size="small"
+                  color="success"
+                  @click="openStockDialog(item)"
+                  class="mr-2"
+                  title="Gestionar Inventario"
+                >
+                  <v-icon>mdi-clipboard-list-outline</v-icon>
+                </v-btn>
+                <v-btn
+                  v-if="isAdmin"
                   icon
                   variant="text"
                   size="small"
@@ -110,7 +124,16 @@
           Material: {{ selectedMaterial?.nombre }}
         </v-card-subtitle>
         <v-card-text>
-          <v-list bg-color="transparent" v-if="!loadingAssignments">
+          <div class="d-flex align-center px-4 py-2 mb-2 border-b">
+             <v-checkbox-btn
+                v-model="selectAll"
+                color="purple"
+                class="mr-2"
+                @update:model-value="toggleSelectAll"
+             ></v-checkbox-btn>
+             <span class="text-caption text-grey">Seleccionar Todas las Estaciones</span>
+          </div>
+          <v-list bg-color="transparent" v-if="!loadingAssignments" max-height="400" class="overflow-y-auto">
             <v-list-item
               v-for="estacion in estacionesDisponibles"
               :key="estacion.id"
@@ -121,6 +144,7 @@
                   v-model="selectedEstaciones"
                   :value="estacion.id"
                   color="purple"
+                  @update:model-value="updateSelectAllState"
                 ></v-checkbox-btn>
               </template>
               <v-list-item-title>{{ estacion.nombre }}</v-list-item-title>
@@ -137,17 +161,85 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <!-- Dialogo Gestión de Stock -->
+    <v-dialog v-model="stockDialog" max-width="500px">
+      <v-card color="#2d2d2d">
+        <v-card-title class="text-h5 pa-4">
+          Gestionar Inventario
+        </v-card-title>
+        <v-card-subtitle class="px-4 pb-2 text-info">
+          {{ selectedMaterial?.nombre }}
+        </v-card-subtitle>
+        <v-card-text>
+          <v-container>
+            <v-row>
+              <v-col cols="12">
+                <v-select
+                  v-if="isAdmin"
+                  v-model="stockEstacionId"
+                  :items="estacionesDisponibles"
+                  item-title="nombre"
+                  item-value="id"
+                  label="Seleccionar Estación"
+                  variant="outlined"
+                  density="comfortable"
+                  @update:model-value="loadStockCurrent"
+                ></v-select>
+                <div v-else class="mb-4 text-subtitle-1">
+                  Estación: <span class="font-weight-bold">{{ estacionesDisponibles.find(e => e.id === stockEstacionId)?.nombre || 'Mi Estación' }}</span>
+                </div>
+              </v-col>
+              
+              <v-col cols="12" v-if="stockEstacionId">
+                 <div class="d-flex justify-space-between mb-2">
+                   <span class="text-caption">Stock Actual Registrado:</span>
+                   <span class="font-weight-bold text-success">{{ stockCurrent !== null ? stockCurrent : '...' }} {{ selectedMaterial?.unidad }}</span>
+                 </div>
+                 
+                 <v-text-field
+                   v-model.number="stockCantidad"
+                   label="Nuevo Stock (Conteo Real)"
+                   type="number"
+                   variant="outlined"
+                   density="comfortable"
+                   hide-details
+                   min="0"
+                 ></v-text-field>
+                 <div class="text-caption text-grey mt-1">
+                   Ingrese la cantidad real contada en la estación.
+                 </div>
+              </v-col>
+            </v-row>
+          </v-container>
+        </v-card-text>
+        <v-card-actions class="pa-4 pt-0">
+          <v-spacer></v-spacer>
+          <v-btn color="grey" variant="text" @click="stockDialog = false">Cancelar</v-btn>
+          <v-btn color="success" variant="elevated" @click="saveStock" :loading="loadingStock" :disabled="!stockEstacionId">Actualizar Stock</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
-import { stationService, materialService } from '@/services/apiService'
+import { ref, reactive, onMounted, computed } from 'vue'
+import { stationService, materialService, dashboardService } from '@/services/apiService'
 
 const loading = ref(false)
 const dialog = ref(false)
 const assignDialog = ref(false)
 const loadingAssignments = ref(false)
+
+const rolId = sessionStorage.getItem('rol_id')
+const isAdmin = computed(() => rolId === '1')
+
+const stockDialog = ref(false)
+const stockEstacionId = ref(null)
+const stockCantidad = ref(0)
+const stockCurrent = ref(null)
+const loadingStock = ref(false)
 
 const headers = [
   { title: 'Nombre', key: 'nombre' },
@@ -167,6 +259,7 @@ const defaultItem = {
 const editedItem = reactive({ ...defaultItem })
 const selectedMaterial = ref(null)
 const selectedEstaciones = ref([])
+const selectAll = ref(false)
 
 onMounted(async () => {
   await Promise.all([
@@ -179,7 +272,8 @@ async function loadEstaciones() {
   try {
     const res = await stationService.getEstaciones()
     if (res.success) {
-      estacionesDisponibles.value = res.data
+      // Filtrar la estación con ID 1 (TODAS) para evitar asignación global errónea
+      estacionesDisponibles.value = res.data.filter(e => e.id !== 1)
     }
   } catch (error) {
     console.error('Error cargando estaciones', error)
@@ -217,19 +311,8 @@ async function openAssignDialog(item) {
   selectedMaterial.value = item
   assignDialog.value = true
   selectedEstaciones.value = []
+  selectAll.value = false
   loadingAssignments.value = true
-  
-  // Cargar asignaciones actuales consultando cada estación (ineficiente pero funcional con API actual)
-  // O mejor: Iterar estaciones y verificar si tienen el material
-  // Dado que la API get_materiales_estacion es por estación, lo ideal sería tener un endpoint inverso
-  // "get_estaciones_material". Como no existe, haremos una lógica aproximada:
-  // Al guardar, enviaremos la asignación explícita.
-  // Para visualizar, por ahora mostraremos limpio o implementaremos una carga masiva si es crítico.
-  
-  // ESTRATEGIA ACTUAL: Cargar estado real es complejo sin endpoint específico.
-  // Vamos a permitir asignar ciegamente (activar).
-  // Si el usuario quiere ver qué estaciones tienen el material, necesitaríamos iterar todas las estaciones
-  // y llamar a getMaterialesEstacion para cada una. Lo haremos así por ahora:
   
   try {
     const promises = estacionesDisponibles.value.map(estacion => 
@@ -247,10 +330,27 @@ async function openAssignDialog(item) {
     })
     selectedEstaciones.value = asignadas
     
+    // Verificar si todas están seleccionadas
+    updateSelectAllState()
+    
   } catch (error) {
     console.error('Error cargando asignaciones', error)
   } finally {
     loadingAssignments.value = false
+  }
+}
+
+function updateSelectAllState() {
+  if (estacionesDisponibles.value.length > 0) {
+    selectAll.value = selectedEstaciones.value.length === estacionesDisponibles.value.length
+  }
+}
+
+function toggleSelectAll(val) {
+  if (val) {
+    selectedEstaciones.value = estacionesDisponibles.value.map(e => e.id)
+  } else {
+    selectedEstaciones.value = []
   }
 }
 
@@ -275,6 +375,75 @@ async function saveMaterial() {
     }
   } catch (error) {
     console.error('Error guardando material', error)
+  }
+}
+
+async function openStockDialog(item) {
+  selectedMaterial.value = item
+  stockDialog.value = true
+  stockEstacionId.value = null
+  stockCantidad.value = 0
+  stockCurrent.value = null
+  
+  if (!isAdmin.value) {
+    // Si es Encargado, preseleccionar su estación
+    loadingStock.value = true
+    try {
+      const usuarioId = sessionStorage.getItem('usuario_id')
+      const info = await dashboardService.getInfoEstacion(usuarioId)
+      if (info.success && info.data) {
+        const estId = info.data.estacion_id || info.data.id || (info.data.estacion?.id)
+        if (estId) {
+          stockEstacionId.value = estId
+          await loadStockCurrent() // Cargar stock actual
+        }
+      }
+    } catch (e) {
+      console.error('Error cargando info usuario', e)
+    } finally {
+      loadingStock.value = false
+    }
+  }
+}
+
+async function loadStockCurrent() {
+  if (!stockEstacionId.value || !selectedMaterial.value) return
+  
+  loadingStock.value = true
+  try {
+    const res = await materialService.getMaterialesEstacion(stockEstacionId.value)
+    if (res.success) {
+      const mat = res.data.find(m => m.material_id === selectedMaterial.value.id)
+      stockCurrent.value = mat ? mat.stock : 0
+      stockCantidad.value = stockCurrent.value // Prellenar con valor actual
+    }
+  } catch (e) {
+    console.error('Error cargando stock', e)
+  } finally {
+    loadingStock.value = false
+  }
+}
+
+async function saveStock() {
+  if (!stockEstacionId.value || !selectedMaterial.value) return
+  
+  loadingStock.value = true
+  try {
+    const res = await materialService.updateStock({
+      estacion_id: stockEstacionId.value,
+      material_id: selectedMaterial.value.id,
+      cantidad: stockCantidad.value,
+      tipo: 'absoluto'
+    })
+    
+    if (res.success) {
+      stockDialog.value = false
+      await loadMateriales() // Recargar para actualizar si hay vista global
+    }
+  } catch (e) {
+    console.error('Error guardando stock', e)
+  } finally {
+    loadingStock.value = false
   }
 }
 
