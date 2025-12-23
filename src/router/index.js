@@ -17,6 +17,7 @@ import BombasView from '@/views/BombasView.vue'
 import LecturasComparativasView from '@/views/LecturasComparativasView.vue'
 import SolicitudesView from '@/views/SolicitudesView.vue'
 import AdminMaterialView from '@/views/AdminMaterialView.vue'
+import InventarioView from '@/views/InventarioView.vue'
 
 
 
@@ -144,6 +145,12 @@ const routes = [
     path: '/admin/materiales',
     name: 'admin-materiales',
     component: AdminMaterialView,
+    meta: { requiresAuth: true, allowedRoles: ['ADMIN'] }
+  },
+  {
+    path: '/inventario',
+    name: 'inventory',
+    component: () => import('@/views/InventarioView.vue'),
     meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Encargado'] }
   }
 ]

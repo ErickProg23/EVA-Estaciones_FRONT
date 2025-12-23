@@ -165,6 +165,14 @@ export const useNavigationStore = defineStore('navigation', () => {
           value: 'admin-materiales',
           route: '/admin/materiales',
           type: 'item',
+          allowedRoles: ['ADMIN']
+        },
+        {
+          title: 'Inventario',
+          icon: 'mdi-clipboard-list',
+          value: 'inventory',
+          route: '/inventario',
+          type: 'item',
           allowedRoles: ['ADMIN', 'Encargado']
         }
       ]

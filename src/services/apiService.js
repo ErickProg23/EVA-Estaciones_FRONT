@@ -1158,6 +1158,24 @@ export const solicitudesService = {
         message: error.response?.data?.message || error.message || 'Error al actualizar estado'
       }
     }
+  },
+
+  // Confirmar recepción (Nuevo Endpoint)
+  async confirmarRecepcion(id) {
+    try {
+      const response = await apiClient.post(`/api/solicitudes/${id}/confirmar`)
+      return {
+        success: true,
+        data: response.data,
+        message: response.data.message || 'Recepción confirmada correctamente'
+      }
+    } catch (error) {
+      console.error('Error en confirmarRecepcion:', error)
+      return {
+        success: false,
+        message: error.response?.data?.message || error.message || 'Error al confirmar recepción'
+      }
+    }
   }
 }
 export default apiClient

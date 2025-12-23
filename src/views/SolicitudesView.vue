@@ -161,7 +161,7 @@
             </v-list-item>
           </v-list>
 
-          <!-- Acciones de gestión para ADMIN (Aprobar/Rechazar) -->
+          <!-- Acciones de gestión para ADMIN -->
           <div v-if="isAdmin && selectedSolicitud.estado.toLowerCase() === 'pendiente'" class="mt-4 pt-4 border-t">
             <v-textarea
               v-model="actionComment"
@@ -170,17 +170,39 @@
               rows="2"
               class="mb-2"
             ></v-textarea>
+            
             <div class="d-flex gap-2 justify-end">
               <v-btn color="error" variant="text" @click="updateStatus('rechazado')" :loading="updatingStatus">
                 Rechazar
               </v-btn>
-              <v-btn color="success" variant="elevated" @click="updateStatus('aceptado')" :loading="updatingStatus">
-                Aprobar
+              <v-btn color="blue" variant="elevated" @click="updateStatus('aceptado')" :loading="updatingStatus">
+                Aprobar Solicitud
               </v-btn>
             </div>
           </div>
 
-          <!-- Acciones de gestión para Encargado (Cancelar) -->
+          <!-- Acciones para ENCARGADO (Confirmar Recepción cuando está ACEPTADO) -->
+          <div v-if="!isAdmin && selectedSolicitud.estado.toLowerCase() === 'aceptado'" class="mt-4 pt-4 border-t text-center">
+             <div class="text-h6 mb-2 text-blue">
+               <v-icon color="blue" size="large" class="mb-1">mdi-truck-delivery</v-icon>
+               ¿Material Recibido?
+             </div>
+             <p class="text-caption text-grey mb-4">
+               El administrador ya aprobó el envío. Al confirmar, la cantidad se sumará automáticamente a tu inventario.
+             </p>
+             <v-btn 
+                color="success" 
+                size="large" 
+                variant="elevated" 
+                @click="confirmarRecepcion" 
+                :loading="updatingStatus"
+                prepend-icon="mdi-check-circle"
+              >
+                Confirmar Recepción y Sumar Stock
+              </v-btn>
+          </div>
+
+          <!-- Acciones de cancelación (solo pendiente) -->
           <div v-if="canCancel" class="mt-4 pt-4 border-t">
             <div class="d-flex align-center justify-space-between">
               <span class="text-caption text-grey">Puedes cancelar esta solicitud dentro de las primeras 24 horas.</span>
@@ -322,7 +344,10 @@ function getStatusColor(estado) {
   const s = estado.toLowerCase()
   switch (s) {
     case 'aceptado': 
-    case 'aprobado': return 'success' // Backend usa aceptado, mantenemos aprobado por compatibilidad visual si fuera necesario
+    case 'aprobado': return 'info' // Cambiado a azul para diferenciar del final (verde)
+    case 'entregado': return 'indigo'
+    case 'finalizado': 
+    case 'completado': return 'success'
     case 'pendiente': return 'warning'
     case 'rechazado': return 'error'
     case 'cancelado': return 'grey-darken-1'
@@ -399,6 +424,27 @@ function verDetalles(item) {
   selectedSolicitud.value = item
   actionComment.value = ''
   detailsDialog.value = true
+}
+
+async function confirmarRecepcion() {
+  if (!selectedSolicitud.value) return
+  updatingStatus.value = true
+  try {
+    // Usamos endpoint específico para confirmar y sumar stock
+    await solicitudesService.post(`/api/solicitudes/${selectedSolicitud.value.id}/confirmar`)
+    
+    // Actualizar UI local
+    const index = solicitudes.value.findIndex(s => s.id === selectedSolicitud.value.id)
+    if (index !== -1) {
+      solicitudes.value[index].estado = 'finalizado'
+    }
+    selectedSolicitud.value.estado = 'finalizado'
+    detailsDialog.value = false // Cerrar dialogo tras éxito
+  } catch (error) {
+    console.error('Error confirmando recepción:', error)
+  } finally {
+    updatingStatus.value = false
+  }
 }
 
 async function updateStatus(nuevoEstado) {
