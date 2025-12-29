@@ -160,6 +160,8 @@ const handleLogin = async () => {
       const rolId = String(data.rol_id ?? sessionStorage.getItem('rol_id'))
       if (rolId === '4') {
         await router.push('/manuales/subir')
+      } else if (rolId === '5') {
+        await router.push('/solicitudes')
       } else {
         await router.push('/dashboard')
       }

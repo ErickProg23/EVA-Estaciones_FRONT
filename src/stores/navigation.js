@@ -149,7 +149,7 @@ export const useNavigationStore = defineStore('navigation', () => {
       icon: 'mdi-clipboard-check',
       value: 'solicitudes-group',
       type: 'group',
-      allowedRoles: ['ADMIN', 'Encargado'],
+      allowedRoles: ['ADMIN', 'Encargado', 'Administrativo'],
       children: [
         {
           title: 'Mis Solicitudes',
@@ -157,7 +157,7 @@ export const useNavigationStore = defineStore('navigation', () => {
           value: 'solicitudes',
           route: '/solicitudes',
           type: 'item',
-          allowedRoles: ['ADMIN', 'Encargado']
+          allowedRoles: ['ADMIN', 'Encargado', 'Administrativo']
         },
         {
           title: 'Gestión de Materiales',
@@ -173,7 +173,7 @@ export const useNavigationStore = defineStore('navigation', () => {
           value: 'inventory',
           route: '/inventario',
           type: 'item',
-          allowedRoles: ['ADMIN', 'Encargado']
+          allowedRoles: ['ADMIN', 'Encargado', 'Administrativo']
         }
       ]
     }
@@ -187,7 +187,8 @@ export const useNavigationStore = defineStore('navigation', () => {
       '1': 'ADMIN',
       '2': 'Capital humano', 
       '3': 'Encargado',
-      '4': 'Mantenimiento'
+      '4': 'Mantenimiento',
+      '5': 'Administrativo'
     }
     const role = roleMap[rolId] || null
     currentUserRole.value = role
@@ -233,7 +234,8 @@ export const useNavigationStore = defineStore('navigation', () => {
       '1': 'ADMIN',
       '2': 'Capital humano',
       '3': 'Encargado',
-      '4': 'Mantenimiento'
+      '4': 'Mantenimiento',
+      '5': 'Administrativo'
     }
     const userRole = currentUserRole.value ?? roleMap[rolId] ?? null
     return userRole && item.allowedRoles.includes(userRole)

@@ -86,6 +86,9 @@
 
         <v-row class="mb-2 justify-end">
           <v-col cols="auto">
+            <v-btn color="secondary" class="mr-2" @click="downloadPDF" prepend-icon="mdi-file-pdf-box">
+              Exportar PDF
+            </v-btn>
             <v-btn color="primary" @click="saveTotals" prepend-icon="mdi-content-save">
               Guardar Totales
             </v-btn>
@@ -180,6 +183,8 @@
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { bombaService, productoService } from '@/services/apiService'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 
 const todayStr = new Date().toISOString().split('T')[0]
 const turnos = [1, 2, 3]
@@ -388,6 +393,125 @@ async function loadNexusTotales() {
   } catch (e) {
     resetNexusTotales()
   }
+}
+
+function downloadPDF() {
+  const doc = new jsPDF()
+
+  // Header
+  doc.setFontSize(16)
+  doc.text('Reporte de Lecturas Comparativas', 14, 15)
+
+  doc.setFontSize(10)
+  doc.text(`Fecha: ${fechaSeleccionada.value}`, 14, 22)
+  doc.text(`Turno: ${turnoSeleccionado.value}`, 60, 22)
+
+  let y = 30
+
+  // Iterate products: Magna (1), Premium (2), Diesel (3)
+  const productIds = [1, 2, 3]
+  const productNames = { 1: 'Magna', 2: 'Premium', 3: 'Diesel' }
+
+  productIds.forEach(pid => {
+    const pName = productNames[pid]
+    const pumps = pumpsByProduct.value[pName] || []
+
+    if (pumps.length === 0) return
+
+    // Header for product
+    doc.setFontSize(12)
+    doc.setTextColor(0, 100, 0) // Dark green
+    doc.text(pName, 14, y)
+    y += 2
+
+    const rows = pumps.map(p => {
+      const key = keyPump(p)
+      const difL = diferenciaLecturasPump(key)
+      const precio = precioProductoId(pid)
+      const difP = difL * precio
+      return [
+        `Bomba ${p.numero_bomba}`,
+        formatNumber(difL),
+        `$ ${formatMoney(difP)}`
+      ]
+    })
+
+    autoTable(doc, {
+      startY: y,
+      head: [['Bomba', 'Dif. Lecturas', 'Importe']],
+      body: rows,
+      theme: 'grid',
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [45, 45, 45] },
+      margin: { left: 14 }
+    })
+
+    y = doc.lastAutoTable.finalY + 5
+
+    // Product Totals
+    let sumDifL = 0
+    let sumDifP = 0
+    pumps.forEach(p => {
+      const key = keyPump(p)
+      const difL = diferenciaLecturasPump(key)
+      sumDifL += difL
+      sumDifP += difL * precioProductoId(pid)
+    })
+
+    const nexus = Number(nexusTotales[pid] ?? 0)
+    const diff = nexus - sumDifP
+
+    // Mini table for product totals
+    autoTable(doc, {
+      startY: y,
+      head: [['Total Lecturas', 'Total Importe', 'Nexus', 'Diferencia']],
+      body: [[
+        formatNumber(sumDifL),
+        `$ ${formatMoney(sumDifP)}`,
+        `$ ${formatMoney(nexus)}`,
+        `$ ${formatMoney(diff)}`
+      ]],
+      theme: 'plain',
+      styles: { fontSize: 9, fontStyle: 'bold' },
+      columnStyles: {
+        3: { textColor: diff < 0 ? [255, 0, 0] : [0, 0, 0] }
+      },
+      margin: { left: 14 }
+    })
+
+    y = doc.lastAutoTable.finalY + 10
+  })
+
+  // Global Totals
+  if (y > 250) {
+    doc.addPage()
+    y = 20
+  }
+  
+  doc.setFontSize(14)
+  doc.setTextColor(0, 0, 0)
+  doc.text('Totales Globales', 14, y)
+  y += 5
+
+  autoTable(doc, {
+    startY: y,
+    head: [['Lecturas Totales', 'Importe Total', 'Nexus Total', 'Diferencia Global']],
+    body: [[
+      formatNumber(totalDifLecturasAll.value),
+      `$ ${formatMoney(totalDifPesosGlobal.value)}`,
+      `$ ${formatMoney(nexusTotalGlobal.value)}`,
+      `$ ${formatMoney(diferenciaPesosGlobal.value)}`
+    ]],
+    theme: 'grid',
+    styles: { fontSize: 10, fontStyle: 'bold', halign: 'center' },
+    headStyles: { fillColor: [0, 128, 0] }, // Green
+    columnStyles: {
+      3: { textColor: diferenciaPesosGlobal.value < 0 ? [255, 0, 0] : [0, 0, 0] }
+    },
+    margin: { left: 14 }
+  })
+
+  doc.save(`Reporte_Lecturas_${fechaSeleccionada.value}_Turno${turnoSeleccionado.value}.pdf`)
 }
 
 async function saveTotals() {

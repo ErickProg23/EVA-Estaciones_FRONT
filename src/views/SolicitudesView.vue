@@ -145,7 +145,7 @@
             <v-list-item>
               <template v-slot:prepend><v-icon color="green" class="mr-2">mdi-gas-station</v-icon></template>
               <v-list-item-title>Estación</v-list-item-title>
-              <v-list-item-subtitle class="text-white">{{ selectedSolicitud.usuario_id.estacion }}</v-list-item-subtitle>
+              <v-list-item-subtitle class="text-white">{{ selectedSolicitud.estacion_nombre }}</v-list-item-subtitle>
             </v-list-item>
 
             <v-list-item>
@@ -408,8 +408,16 @@ async function save() {
 async function loadSolicitudes() {
   loading.value = true
   try {
-    // Filtros eliminados según solicitud
-    const res = await solicitudesService.getSolicitudes()
+    const rolId = sessionStorage.getItem('rol_id')
+    const estacionId = sessionStorage.getItem('estacion_id')
+    
+    const params = {}
+    // Si no es admin (1), filtrar por la estación del usuario
+    if (rolId && String(rolId) !== '1' && estacionId) {
+      params.estacion_id = estacionId
+    }
+
+    const res = await solicitudesService.getSolicitudes(params)
     if (res.success) {
       solicitudes.value = res.data
     }
@@ -431,15 +439,20 @@ async function confirmarRecepcion() {
   updatingStatus.value = true
   try {
     // Usamos endpoint específico para confirmar y sumar stock
-    await solicitudesService.post(`/api/solicitudes/${selectedSolicitud.value.id}/confirmar`)
+    const res = await solicitudesService.confirmarRecepcion(selectedSolicitud.value.id)
     
-    // Actualizar UI local
-    const index = solicitudes.value.findIndex(s => s.id === selectedSolicitud.value.id)
-    if (index !== -1) {
-      solicitudes.value[index].estado = 'finalizado'
+    if (res.success) {
+      // Actualizar UI local
+      const index = solicitudes.value.findIndex(s => s.id === selectedSolicitud.value.id)
+      if (index !== -1) {
+        solicitudes.value[index].estado = 'finalizado'
+      }
+      selectedSolicitud.value.estado = 'finalizado'
+      detailsDialog.value = false // Cerrar dialogo tras éxito
+      await loadSolicitudes() // Recargar para asegurar consistencia
+    } else {
+      console.error('Error al confirmar recepción:', res.message)
     }
-    selectedSolicitud.value.estado = 'finalizado'
-    detailsDialog.value = false // Cerrar dialogo tras éxito
   } catch (error) {
     console.error('Error confirmando recepción:', error)
   } finally {

@@ -139,7 +139,7 @@ const routes = [
     path: '/solicitudes',
     name: 'solicitudes',
     component: SolicitudesView,
-    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Encargado'] }
+    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Encargado', 'Administrativo'] }
   },
   {
     path: '/admin/materiales',
@@ -151,7 +151,7 @@ const routes = [
     path: '/inventario',
     name: 'inventory',
     component: () => import('@/views/InventarioView.vue'),
-    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Encargado'] }
+    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Encargado', 'Administrativo'] }
   }
 ]
 
@@ -166,7 +166,8 @@ const hasRole = (allowedRoles) => {
     '1': 'ADMIN',
     '2': 'Capital humano', 
     '3': 'Encargado',
-    '4': 'Mantenimiento'
+    '4': 'Mantenimiento',
+    '5': 'Administrativo'
   }
   const userRole = roleMap[rolId]
   return userRole && allowedRoles.includes(userRole)

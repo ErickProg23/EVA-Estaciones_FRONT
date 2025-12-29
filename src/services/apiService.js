@@ -1124,9 +1124,18 @@ export const solicitudesService = {
   },
 
   // Obtener solicitudes
-  async getSolicitudes() {
+  async getSolicitudes(params = {}) {
     try {
-      const response = await apiClient.get('/api/solicitudes')
+      // Construir query string con los parámetros recibidos
+      const queryParams = new URLSearchParams()
+      if (params.estacion_id) queryParams.append('estacion_id', params.estacion_id)
+      if (params.usuario_id) queryParams.append('usuario_id', params.usuario_id)
+      if (params.estado) queryParams.append('estado', params.estado)
+
+      const queryString = queryParams.toString()
+      const url = queryString ? `/api/solicitudes?${queryString}` : '/api/solicitudes'
+
+      const response = await apiClient.get(url)
       return {
         success: true,
         data: Array.isArray(response.data) ? response.data : response.data.solicitudes || [],
