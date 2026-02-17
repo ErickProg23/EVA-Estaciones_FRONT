@@ -19,13 +19,13 @@
             <div class="d-flex align-center justify-space-between mb-6">
               <div>
                 <h1 class="text-h4 font-weight-bold text-white mb-2">
-                  <v-icon class="mr-3" color="blue">mdi-account-hard-hat</v-icon>
+                  <v-icon class="mr-3" color="green">mdi-account-hard-hat</v-icon>
                   Gestión de Puestos
                 </h1>
                 <p class="text-grey-400 ma-0">Administra los puestos de trabajo del sistema EVA</p>
               </div>
               <v-btn 
-                color="blue" 
+                color="green" 
                 size="large" 
                 @click="openDialog()"
                 class="text-none"

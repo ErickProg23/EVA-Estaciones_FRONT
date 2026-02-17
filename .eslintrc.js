@@ -3,6 +3,8 @@ module.exports = {
   env: {
     node: true,
   },
+  parser: "vue-eslint-parser",
+  parser: "vue-eslint-parser",
   extends: [
     "plugin:vue/vue3-essential",
     "eslint:recommended",
@@ -11,6 +13,10 @@ module.exports = {
   ],
   parserOptions: {
     parser: "@babel/eslint-parser",
+    requireConfigFile: false,
+    babelOptions: { presets: ["@babel/preset-env"] }
+  },  requireConfigFile: false,
+    babelOptions: { presets: ["@vue/cli-plugin-babel/preset"] }
   },
   rules: {
     "no-console": process.env.NODE_ENV === "production" ? "warn" : "off",

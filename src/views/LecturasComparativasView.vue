@@ -156,11 +156,23 @@
           <template #item.bomba="{ item }">
             {{ labelPump(item) }}
           </template>
+          <template #item.inicial="{ item }">
+            {{ formatNumber(volumenInicialPump(keyPump(item))) }}
+          </template>
+          <template #item.final="{ item }">
+            <v-text-field
+              v-model.number="volFinalByPump[keyPump(item)]"
+              type="number"
+              variant="outlined"
+              density="compact"
+              hide-details="auto"
+            />
+          </template>
           <template #item.difLecturas="{ item }">
-            {{ formatNumber(diferenciaLecturasPump(keyPump(item))) }}
+            {{ formatNumber(diferenciaLecturasPumpUI(keyPump(item))) }}
           </template>
           <template #item.difPesos="{ item }">
-            $ {{ formatMoney(diferenciaLecturasPump(keyPump(item)) * precioProductoId(productoId(item))) }}
+            $ {{ formatMoney(diferenciaLecturasPumpUI(keyPump(item)) * precioProductoId(productoId(item))) }}
           </template>
         </v-data-table>
 
@@ -204,6 +216,8 @@ const bombas = ref([])
 const difLecturasApi = reactive({})       // key -> número (API)
 const preciosPorProducto = reactive({ 1: 0, 2: 0, 3: 0 })
 const nexusTotales = reactive({ 1: 0, 2: 0, 3: 0 })
+const volInicialByPump = reactive({})
+const volFinalByPump = reactive({})
 
 function formatMoney(val) {
   const n = Number(val ?? 0)
@@ -222,7 +236,7 @@ const totalDifPesosGlobal = computed(() => {
   let sum = 0
   for (const p of bombas.value) {
     const pid = productoId(p)
-    sum += diferenciaLecturasPump(keyPump(p)) * precioProductoId(pid)
+    sum += diferenciaLecturasPumpUI(keyPump(p)) * precioProductoId(pid)
   }
   return sum
 })
@@ -277,10 +291,11 @@ const currentPumps = computed(() => pumpsByProduct.value[selectedProduct.value] 
 
 const tableHeaders = [
   { title: 'Bomba', key: 'bomba' },
+  { title: 'Volumen inicial', key: 'inicial' },
+  { title: 'Volumen final', key: 'final' },
   { title: 'Diferencia total lecturas', key: 'difLecturas' },
-  { title: 'Pesos $', key: 'difPesos' },
+  { title: 'Pesos', key: 'difPesos' },
 ]
-
 
 function diffColor(val) {
   const v = Number(val ?? 0)
@@ -312,17 +327,26 @@ function diferenciaLecturasPump(key) {
   const api = Number(difLecturasApi[key] ?? 0)
   return Number.isFinite(api) ? api : 0
 }
+function volumenInicialPump(key) {
+  const v = Number(volInicialByPump[key] ?? NaN)
+  return Number.isFinite(v) ? v : 0
+}
+function diferenciaLecturasPumpUI(key) {
+  const finalV = Number(volFinalByPump[key] ?? NaN)
+  if (Number.isFinite(finalV)) return finalV - volumenInicialPump(key)
+  return 0
+}
 
 
 const totalDifLecturas = computed(() => {
   let sum = 0
-  for (const p of currentPumps.value) sum += diferenciaLecturasPump(keyPump(p))
+  for (const p of currentPumps.value) sum += diferenciaLecturasPumpUI(keyPump(p))
   return sum
 })
 
 const totalDifLecturasAll = computed(() => {
   let sum = 0
-  for (const p of bombas.value) sum += diferenciaLecturasPump(keyPump(p))
+  for (const p of bombas.value) sum += diferenciaLecturasPumpUI(keyPump(p))
   return sum
 })
 
@@ -360,12 +384,29 @@ async function loadDifLecturas() {
   try {
     const res = await bombaService.getLecturasManualDiferencias(estacionId, fechaSeleccionada.value, turnoSeleccionado.value)
     const list = res.success ? (Array.isArray(res.data) ? res.data : []) : []
-    // Reset difLecturasApi before filling
     Object.keys(difLecturasApi).forEach(k => delete difLecturasApi[k])
+    Object.keys(volInicialByPump).forEach(k => delete volInicialByPump[k])
     
     for (const it of list) {
       const key = `${it.estacion_id}:${it.producto_id}:${String(it.numero_bomba)}`
       difLecturasApi[key] = Number(it.dif_lecturas ?? 0)
+      const inicial = Number(it.final_prev ?? NaN)
+      if (Number.isFinite(inicial)) volInicialByPump[key] = inicial
+    }
+  } catch (e) {}
+}
+
+async function loadVolInicial() {
+  if (!estacionId) return
+  const { turno: prevTurno, fecha: prevFechaStr } = prevTurnoFecha(fechaSeleccionada.value, turnoSeleccionado.value)
+  try {
+    const res = await bombaService.getLecturasManualUltimas(estacionId, prevFechaStr, prevTurno)
+    const list = res.success ? (Array.isArray(res.data) ? res.data : []) : []
+    Object.keys(volInicialByPump).forEach(k => delete volInicialByPump[k])
+    for (const it of list) {
+      const key = `${it.estacion_id}:${it.producto_id}:${String(it.numero_bomba)}`
+      const lectura = Number(it.cantidad ?? it.lectura ?? it.final ?? 0)
+      volInicialByPump[key] = lectura
     }
   } catch (e) {}
 }
@@ -426,11 +467,15 @@ function downloadPDF() {
 
     const rows = pumps.map(p => {
       const key = keyPump(p)
-      const difL = diferenciaLecturasPump(key)
+      const inicial = volumenInicialPump(key)
+      const finalV = Number(volFinalByPump[key] ?? NaN)
+      const difL = Number.isFinite(finalV) ? finalV - inicial : 0
       const precio = precioProductoId(pid)
       const difP = difL * precio
       return [
         `Bomba ${p.numero_bomba}`,
+        formatNumber(inicial),
+        Number.isFinite(finalV) ? formatNumber(finalV) : '',
         formatNumber(difL),
         `$ ${formatMoney(difP)}`
       ]
@@ -438,7 +483,7 @@ function downloadPDF() {
 
     autoTable(doc, {
       startY: y,
-      head: [['Bomba', 'Dif. Lecturas', 'Importe']],
+      head: [['Bomba', 'Inicial', 'Final', 'Dif. Lecturas', 'Importe']],
       body: rows,
       theme: 'grid',
       styles: { fontSize: 9 },
@@ -453,7 +498,7 @@ function downloadPDF() {
     let sumDifP = 0
     pumps.forEach(p => {
       const key = keyPump(p)
-      const difL = diferenciaLecturasPump(key)
+      const difL = diferenciaLecturasPumpUI(key)
       sumDifL += difL
       sumDifP += difL * precioProductoId(pid)
     })
@@ -559,6 +604,7 @@ async function saveTotals() {
 }
 
 watch([fechaSeleccionada, turnoSeleccionado], async () => {
+  await loadVolInicial()
   await loadDifLecturas()
   await loadNexusTotales()
 })
@@ -579,6 +625,7 @@ watch(selectedProduct, () => {
 onMounted(async () => {
   await loadBombas()
   await loadPrecios()
+  await loadVolInicial()
   await loadDifLecturas()
   await loadNexusTotales()
 })
@@ -610,5 +657,8 @@ onMounted(async () => {
   left: 0;
   background: #2d2d2d;
   z-index: 1;
+}
+.sticky-first-col :deep(th:first-child) {
+  color: #fff;
 }
 </style>
