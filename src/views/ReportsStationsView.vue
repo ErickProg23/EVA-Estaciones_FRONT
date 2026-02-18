@@ -18,13 +18,13 @@
             <div class="d-flex align-center justify-space-between mb-6">
               <div>
                 <h1 class="text-h4 font-weight-bold text-white mb-2">
-                  <v-icon class="mr-3" color="blue">mdi-chart-line</v-icon>
+                  <v-icon class="mr-3" color="green">mdi-chart-line</v-icon>
                   Reportes de Estaciones
                 </h1>
                 <p class="text-grey-400 ma-0">Análisis de calificaciones promedio por mes y estación</p>
               </div>
               <v-btn 
-                color="blue" 
+                color="green" 
                 size="large" 
                 @click="exportData"
                 class="text-none"

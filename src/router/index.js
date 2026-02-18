@@ -31,7 +31,7 @@ const routes = [
     path: '/dashboard',
     name: 'dashboard',
     component: DashboardView,
-    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Encargado', 'Capital humano'] }
+    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Encargado'] }
   },
   {
     path: '/reports',
@@ -65,7 +65,7 @@ const routes = [
     path: '/administration/stations',
     name: 'stations',
     component: StationsView,
-    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Capital humano'] }
+    meta: { requiresAuth: true, allowedRoles: ['ADMIN'] }
   },
   {
     path: '/administration/personal',
@@ -77,7 +77,7 @@ const routes = [
     path: '/administration/puesto',
     name: 'puesto',
     component: PuestoView,
-    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Capital humano'] }
+    meta: { requiresAuth: true, allowedRoles: ['ADMIN'] }
   },
   {
     path: '/administration/aspecto',
@@ -89,7 +89,7 @@ const routes = [
     path: '/evaluation/new',
     name: 'evaluationNew',
     component: EvaluationView,
-    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Capital humano', 'Encargado'] }
+    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Encargado'] }
   },
   {
     path: '/pesos-puesto',
@@ -184,8 +184,13 @@ router.beforeEach((to, from, next) => {
   
   // Verificar roles si están definidos
   if (to.meta.allowedRoles && !hasRole(to.meta.allowedRoles)) {
-    // Redirigir a dashboard si no tiene permisos
-    next('/dashboard')
+    const rolId = sessionStorage.getItem('rol_id')
+    const defaultByRole = {
+      '2': '/reports/stations',
+      '4': '/manuales/subir',
+      '5': '/solicitudes'
+    }
+    next(defaultByRole[rolId] || '/dashboard')
     return
   }
   

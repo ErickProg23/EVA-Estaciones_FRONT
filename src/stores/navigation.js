@@ -20,7 +20,7 @@ export const useNavigationStore = defineStore('navigation', () => {
       value: 'dashboard',
       route: '/dashboard',
       type: 'item',
-      allowedRoles: ['ADMIN', 'Encargado', 'Capital humano']
+      allowedRoles: ['ADMIN', 'Encargado']
     },
     {
       title: 'Evaluación',
@@ -28,7 +28,7 @@ export const useNavigationStore = defineStore('navigation', () => {
       value: 'evaluation',
       route: '/evaluation/new',
       type: 'item',
-      allowedRoles: ['ADMIN', 'Encargado', 'Capital humano']
+      allowedRoles: ['ADMIN', 'Encargado']
     },
     {
       title: 'Tickets',
@@ -76,7 +76,7 @@ export const useNavigationStore = defineStore('navigation', () => {
           value: 'stations',
           route: '/administration/stations',
           type: 'item',
-          allowedRoles: ['ADMIN', 'Capital humano']
+          allowedRoles: ['ADMIN']
         },
         {
           title: 'Personal',
@@ -92,7 +92,7 @@ export const useNavigationStore = defineStore('navigation', () => {
           value: 'puesto',
           route: '/administration/puesto',
           type: 'item',
-          allowedRoles: ['ADMIN', 'Capital humano']
+          allowedRoles: ['ADMIN']
         },
         {
           title: 'Aspectos',

@@ -162,6 +162,8 @@ const handleLogin = async () => {
         await router.push('/manuales/subir')
       } else if (rolId === '5') {
         await router.push('/solicitudes')
+      } else if (rolId === '2') {
+        await router.push('/reports/stations')
       } else {
         await router.push('/dashboard')
       }

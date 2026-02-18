@@ -214,23 +214,21 @@ const loadPeriodoEvaluacion = async () => {
   const usuarioId = sessionStorage.getItem('usuario_id')
   try {
     const res = await dashboardService.getAlertas(usuarioId)
-    const payload = res?.data?.data || res?.data || {}
-    const dlStr = payload?.deadline
-    if (dlStr) {
-      const now = new Date()
-      const dl = new Date(String(dlStr).replace(' ', 'T'))
-      const diffMs = dl.getTime() - now.getTime()
-      const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
-      diasRestantes.value = daysLeft
-      deadline.value = dlStr
-      periodoActivo.value = daysLeft > 0
-      if (daysLeft > 0) {
-        mensaje.value = `Periodo activo. Restan ${daysLeft} días para evaluar.`
-        mensajeTipo.value = 'info'
-      } else {
-        mensaje.value = `Periodo de evaluación vencido. Límite ${dlStr}.`
-        mensajeTipo.value = 'error'
-      }
+    const todayStr = new Date().toISOString().split('T')[0]
+    const dlStr = `${todayStr} 23:59:59`
+    const now = new Date()
+    const dl = new Date(String(dlStr).replace(' ', 'T'))
+    const diffMs = dl.getTime() - now.getTime()
+    const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+    diasRestantes.value = daysLeft
+    deadline.value = dlStr
+    periodoActivo.value = daysLeft > 0
+    if (daysLeft > 0) {
+      mensaje.value = `Periodo activo. Restan ${daysLeft} días para evaluar.`
+      mensajeTipo.value = 'info'
+    } else {
+      mensaje.value = `Periodo de evaluación vencido. Límite ${dlStr}.`
+      mensajeTipo.value = 'error'
     }
   } catch (e) {}
 }
@@ -310,9 +308,9 @@ const router = useRouter()
 
 const seleccionarPuesto = async (puesto) => {
   if (isLoading.value) {
-    mensaje.value = 'Verificando evaluaciones, espera un momento.'
+    mensaje.value = 'Cargando estado de evaluaciones…'
     mensajeTipo.value = 'info'
-    return
+    // Permitimos continuar aunque esté cargando
   }
   if (puesto.evaluado) {
     mensaje.value = `Ya existe una evaluación de ${puesto.nombre} para este mes.`

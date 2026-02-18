@@ -46,7 +46,7 @@
     </v-alert>
     -->
 
-    <v-card color="#2d2d2d" dark>
+    <v-card color="#2d2d2d" dark class="compact-card">
       <v-card-text>
         <div v-if="empleadoActual" class="d-flex align-center justify-space-between mb-4">
           <div>
@@ -67,27 +67,26 @@
         <!-- Sección de aspectos (mantener) -->
         <div v-if="aspectos.length > 0">
           <!-- Relleno rápido eliminado -->
-          <!-- Lista de aspectos con botones 0–5 -->
-          <v-row v-for="item in aspectos" :key="item.id" class="align-center py-2">
+          <!-- Lista de aspectos con control compacto 0–5 -->
+          <v-row v-for="item in aspectos" :key="item.id" class="aspect-row align-center py-2">
             <v-col cols="12" md="4">
               <div class="text-body-1">{{ item.nombre }}</div>
               <div class="text-caption text-grey">Peso: {{ item.peso }}</div>
             </v-col>
-            <v-col cols="12" md="5">
-              <div class="d-flex align-center">
-                <v-btn-toggle v-model="item.calificacion" mandatory density="comfortable" color="green" class="flex-grow-1">
-                  <v-btn :value="0">0</v-btn>
-                  <v-btn :value="1">1</v-btn>
-                  <v-btn :value="2">2</v-btn>
-                  <v-btn :value="3">3</v-btn>
-                  <v-btn :value="4">4</v-btn>
-                  <v-btn :value="5">5</v-btn>
-                </v-btn-toggle>
+            <v-col cols="12" md="8">
+              <div class="rating-row">
+                <div class="rating-toggle">
+                  <v-btn-toggle v-model="item.calificacion" mandatory density="compact" color="green">
+                    <v-btn :value="0" size="small">0</v-btn>
+                    <v-btn :value="1" size="small">1</v-btn>
+                    <v-btn :value="2" size="small">2</v-btn>
+                    <v-btn :value="3" size="small">3</v-btn>
+                    <v-btn :value="4" size="small">4</v-btn>
+                    <v-btn :value="5" size="small">5</v-btn>
+                  </v-btn-toggle>
+                </div>
+                <v-chip class="ponderado-chip" color="purple" variant="tonal">Ponderado: {{ computePonderado(item) }}</v-chip>
               </div>
-            </v-col>
-            <v-col cols="12" md="3" class="text-right">
-              <v-chip class="mr-2" color="blue" variant="tonal">Puntos totales: {{ item.calificacion }}</v-chip>
-              <v-chip color="purple" variant="tonal">Porcentaje: {{ computePonderado(item) }}</v-chip>
             </v-col>
           </v-row>
         </div>
@@ -98,8 +97,10 @@
 
         <!-- Mini sección de totales y porcentaje (al final) -->
         <v-divider class="my-4" />
-        <div v-if="aspectos.length > 0" class="mb-2 d-flex align-center justify-end">
-          <v-chip color="green" variant="flat">Total %: {{ porcentajeTotal }}%</v-chip>
+        <div v-if="aspectos.length > 0" class="summary-chips mb-2 d-flex align-center justify-end">
+          <v-chip class="mr-2" color="blue" variant="flat">Puntos: {{ totalPuntos }}</v-chip>
+          <v-chip class="mr-2" color="green" variant="flat">Porcentaje: {{ porcentajeTotal }}%</v-chip>
+          <v-chip color="orange" variant="flat">Ajustado: {{ porcentajeTotalAjustado }}%</v-chip>
         </div>
 
         <v-row class="mt-3" align="center">
@@ -556,4 +557,36 @@ watch(incapacidades, () => {
 
 <style scoped>
 .text-grey-500 { color: #9e9e9e; }
+
+.rating-toggle { display: flex; flex-wrap: wrap; gap: 8px; }
+.rating-toggle :deep(.v-btn) { min-width: 42px; height: 32px; padding: 0 10px; }
+
+.rating-row { display: flex; align-items: center; gap: 30px; justify-content: flex-start; }
+.rating-row .rating-toggle { flex: 0 1 auto; }
+.rating-row .ponderado-chip { margin-left: 4px; }
+
+.chips-col { gap: 8px; flex-wrap: wrap; }
+
+/* Mobile: compact buttons and reduced gaps */
+@media (max-width: 600px) {
+  .compact-card .v-card-text { padding: 12px !important; }
+  .aspect-row { padding-top: 6px; padding-bottom: 6px; }
+  .aspect-row .v-col { padding-top: 4px !important; padding-bottom: 4px !important; }
+  .aspect-row .text-body-1 { font-size: 0.95rem; }
+  .aspect-row .text-caption { font-size: 0.75rem; }
+  .rating-toggle { gap: 4px; }
+  .rating-toggle :deep(.v-btn) { min-width: 36px; height: 28px; padding: 0 8px; }
+  .rating-row { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .rating-row .ponderado-chip { margin-left: 0; }
+  .chips-col { text-align: left; margin-top: 2px; gap: 6px; }
+  .summary-chips { flex-wrap: wrap; justify-content: flex-start; gap: 6px; }
+  .summary-chips .v-chip { height: 28px; font-size: 0.8rem; }
+}
+
+/* Desktop: a little more breathing room */
+@media (min-width: 960px) {
+  .rating-toggle { gap: 10px; }
+  .rating-toggle :deep(.v-btn) { min-width: 48px; height: 36px; padding: 0 12px; }
+  .chips-col { gap: 10px; }
+}
 </style>
