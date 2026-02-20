@@ -78,7 +78,6 @@
                       variant="outlined"
                       density="compact"
                       hide-details
-                      clearable
                       @update:model-value="loadReportData"
                     ></v-select>
                   </v-col>
@@ -102,7 +101,7 @@
 
             <!-- Estadísticas Generales -->
             <v-row class="mb-4">
-              <v-col cols="12" md="3">
+              <v-col cols="12" md="4">
                 <v-card dark color="#2d2d2d">
                   <v-card-text class="text-center">
                     <v-icon size="48" color="green" class="mb-2">mdi-chart-line-variant</v-icon>
@@ -111,7 +110,7 @@
                   </v-card-text>
                 </v-card>
               </v-col>
-              <v-col cols="12" md="3">
+              <v-col cols="12" md="4">
                 <v-card dark color="#2d2d2d">
                   <v-card-text class="text-center">
                     <v-icon size="48" color="blue" class="mb-2">mdi-account-group</v-icon>
@@ -120,16 +119,7 @@
                   </v-card-text>
                 </v-card>
               </v-col>
-              <v-col cols="12" md="3">
-                <v-card dark color="#2d2d2d">
-                  <v-card-text class="text-center">
-                    <v-icon size="48" color="orange" class="mb-2">mdi-map-marker</v-icon>
-                    <h3 class="text-h4 font-weight-bold text-orange">{{ estadisticas.estacionesActivas }}</h3>
-                    <p class="text-grey-400 ma-0">Estaciones Activas</p>
-                  </v-card-text>
-                </v-card>
-              </v-col>
-              <v-col cols="12" md="3">
+              <v-col cols="12" md="4">
                 <v-card dark color="#2d2d2d">
                   <v-card-text class="text-center">
                     <v-icon size="48" color="purple" class="mb-2">mdi-briefcase</v-icon>
@@ -143,7 +133,7 @@
             <!-- Gráficas -->
             <v-row>
               <!-- Gráfica de Tendencia Mensual -->
-              <v-col cols="12" lg="8">
+              <v-col cols="12" lg="12">
                 <v-card dark color="#2d2d2d">
                   <v-card-title>
                     <v-icon left color="blue">mdi-chart-line</v-icon>
@@ -152,21 +142,6 @@
                   <v-card-text>
                     <div class="chart-container" style="height: 400px;">
                       <canvas ref="lineChartRef" id="lineChart"></canvas>
-                    </div>
-                  </v-card-text>
-                </v-card>
-              </v-col>
-              
-              <!-- Gráfica de Comparación por Estación -->
-              <v-col cols="12" lg="4">
-                <v-card dark color="#2d2d2d">
-                  <v-card-title>
-                    <v-icon left color="green">mdi-chart-donut</v-icon>
-                    Promedio por Estación
-                  </v-card-title>
-                  <v-card-text>
-                    <div class="chart-container" style="height: 400px;">
-                      <canvas ref="doughnutChartRef" id="doughnutChart"></canvas>
                     </div>
                   </v-card-text>
                 </v-card>
@@ -200,7 +175,7 @@
                   <v-card-text class="pa-0">
                     <v-data-table
                       :headers="tableHeaders"
-                      :items="reportData"
+                      :items="filteredData"
                       :items-per-page="5"
                       class="transparent"
                       :loading="loading"
@@ -276,7 +251,7 @@ const snackbarColor = ref('success')
 
 // Filtros
 const selectedYear = ref(new Date().getFullYear())
-const selectedMonth = ref(null)
+const selectedMonth = ref(new Date().getMonth() + 1)
 const selectedEstacion = ref(null)
 const selectedPuesto = ref(null)
 
@@ -333,14 +308,22 @@ const monthOptions = computed(() => [
   { text: 'Diciembre', value: 12 }
 ])
 
+// Aplicar filtros seleccionados al dataset
+const matchesFilters = (item) => {
+  const date = item.fecha_evaluacion ? new Date(item.fecha_evaluacion) : null
+  if (selectedYear.value && date && date.getFullYear() !== Number(selectedYear.value)) return false
+  if (selectedMonth.value && date && (date.getMonth() + 1) !== Number(selectedMonth.value)) return false
+  if (selectedEstacion.value && item.estacion_id !== Number(selectedEstacion.value)) return false
+  if (selectedPuesto.value && item.puesto_id !== Number(selectedPuesto.value)) return false
+  return true
+}
+
+const filteredData = computed(() => reportData.value.filter(matchesFilters))
+
 const estacionOptions = computed(() => {
-  const options = [{ text: 'Todas las estaciones', value: null }]
-  estaciones.value.forEach(estacion => {
-    if (estacion.nombre !== 'TODAS') {
-      options.push({ text: estacion.nombre, value: estacion.id })
-    }
-  })
-  return options
+  return estaciones.value
+    .filter(estacion => estacion.nombre !== 'TODAS')
+    .map(estacion => ({ text: estacion.nombre, value: estacion.id }))
 })
 
 const puestoOptions = computed(() => {
@@ -401,6 +384,13 @@ const loadEstaciones = async () => {
     
     if (result.success) {
       estaciones.value = result.data
+      const storedId = Number(sessionStorage.getItem('estacion_id'))
+      const ids = estaciones.value.filter(e => e.nombre !== 'TODAS').map(e => e.id)
+      if (storedId && ids.includes(storedId)) {
+        selectedEstacion.value = storedId
+      } else {
+        selectedEstacion.value = ids[0] ?? null
+      }
     } else {
       showMessage('Error al cargar estaciones', 'error')
     }
@@ -488,7 +478,8 @@ const loadReportData = async () => {
 
 // Calcular estadísticas
 const calculateStatistics = () => {
-  if (reportData.value.length === 0) {
+  const data = filteredData.value
+  if (data.length === 0) {
     estadisticas.value = {
       promedioGeneral: '0.0',
       totalEvaluaciones: 0,
@@ -497,14 +488,12 @@ const calculateStatistics = () => {
     }
     return
   }
-  
-  const totalPromedio = reportData.value.reduce((sum, item) => sum + parseFloat(item.promedio), 0)
-  const totalEvaluaciones = reportData.value.reduce((sum, item) => sum + item.total_evaluaciones, 0)
-  const estacionesUnicas = new Set(reportData.value.map(item => item.estacion_id))
-  const puestosUnicos = new Set(reportData.value.map(item => item.puesto_id))
-  
+  const totalPromedio = data.reduce((sum, item) => sum + parseFloat(item.promedio), 0)
+  const totalEvaluaciones = data.reduce((sum, item) => sum + (item.total_evaluaciones || 0), 0)
+  const estacionesUnicas = new Set(data.map(item => item.estacion_id))
+  const puestosUnicos = new Set(data.map(item => item.puesto_id))
   estadisticas.value = {
-    promedioGeneral: (totalPromedio / reportData.value.length).toFixed(1),
+    promedioGeneral: (totalPromedio / data.length).toFixed(1),
     totalEvaluaciones,
     estacionesActivas: estacionesUnicas.size,
     puestosEvaluados: puestosUnicos.size
@@ -516,7 +505,6 @@ const updateCharts = () => {
   try {
     console.log('Actualizando gráficas con datos:', reportData.value)
     updateLineChart()
-    updateDoughnutChart()
     updateBarChart()
   } catch (error) {
     console.error('Error al actualizar gráficas:', error)
@@ -533,7 +521,8 @@ const updateLineChart = () => {
     lineChart.destroy()
   }
 
-  if (!reportData.value || reportData.value.length === 0) {
+  const dataSrc = filteredData.value
+  if (!dataSrc || dataSrc.length === 0) {
     console.log('No hay datos para mostrar en el gráfico de barras')
     return
   }
@@ -542,11 +531,7 @@ const updateLineChart = () => {
   if (selectedMonth.value) {
     console.log('=== DEBUG: Datos completos ===', reportData.value)
     
-    const monthData = reportData.value.filter(item => {
-      if (!item.fecha_evaluacion) return false
-      const itemMonth = new Date(item.fecha_evaluacion).getMonth() + 1
-      return itemMonth === parseInt(selectedMonth.value)
-    })
+    const monthData = dataSrc
 
     console.log('=== DEBUG: Datos del mes seleccionado ===', monthData)
 
@@ -688,7 +673,7 @@ const updateLineChart = () => {
     // Mostrar tendencia general por mes (gráfico de líneas)
     const monthlyData = {}
     
-    reportData.value.forEach(item => {
+    dataSrc.forEach(item => {
       if (!item.fecha_evaluacion || !item.calificacion_promedio) return
       
       const date = new Date(item.fecha_evaluacion)
@@ -783,74 +768,88 @@ const updateLineChart = () => {
   }
 }
 
-// Gráfica de dona (por estación) - MEJORADA
+// Gráfico de barras horizontal (por estación) - MEJORADO
 const updateDoughnutChart = () => {
   if (doughnutChart) {
     doughnutChart.destroy()
   }
-  
+
   const ctx = doughnutChartRef.value?.getContext('2d')
   if (!ctx) return
-  
-  // Validar que hay datos
-  if (!reportData.value || reportData.value.length === 0) {
-    console.log('No hay datos para la gráfica de dona')
+
+  const dataSrc = filteredData.value
+  if (!dataSrc || dataSrc.length === 0) {
+    console.log('No hay datos para la gráfica por estación')
     return
   }
 
-  // Agrupar datos por estación
-  const estacionData = {}
-  reportData.value.forEach(item => {
-    // Validar que el item tiene los campos necesarios
-    if (item.estacion_nombre && item.promedio !== undefined && item.promedio !== null) {
-      const estacionNombre = item.estacion_nombre.toString()
-      if (!estacionData[estacionNombre]) {
-        estacionData[estacionNombre] = []
-      }
-      const promedio = parseFloat(item.promedio)
-      if (!isNaN(promedio)) {
-        estacionData[estacionNombre].push(promedio)
-      }
+  const stationAgg = {}
+  dataSrc.forEach(item => {
+    const name = String(item.estacion_nombre || 'Sin estación')
+    const val = parseFloat(item.promedio)
+    if (Number.isFinite(val)) {
+      if (!stationAgg[name]) stationAgg[name] = { sum: 0, count: 0 }
+      stationAgg[name].sum += val
+      stationAgg[name].count += 1
     }
   })
-  
-  // Verificar que tenemos datos procesados
-  if (Object.keys(estacionData).length === 0) {
-    console.log('No hay datos válidos para procesar en la gráfica de dona')
+
+  const entries = Object.entries(stationAgg).map(([name, { sum, count }]) => ({
+    name,
+    promedio: parseFloat((sum / count).toFixed(2)),
+    evaluaciones: count
+  }))
+
+  if (entries.length === 0) {
+    console.log('No hay datos válidos para procesar')
     return
   }
 
-  const labels = Object.keys(estacionData)
-  const data = Object.values(estacionData).map(values => 
-    parseFloat((values.reduce((sum, val) => sum + val, 0) / values.length).toFixed(1))
-  )
-  
-  const colors = [
-    '#4CAF50', '#2196F3', '#FF9800', '#9C27B0', 
-    '#F44336', '#00BCD4', '#FFEB3B', '#795548'
-  ]
-  
+  entries.sort((a, b) => b.promedio - a.promedio)
+  const top = entries.slice(0, 10)
+  const labels = top.map(e => e.name)
+  const data = top.map(e => e.promedio)
+
   doughnutChart = new Chart(ctx, {
-    type: 'doughnut',
+    type: 'bar',
     data: {
       labels,
       datasets: [{
+        label: 'Promedio por Estación',
         data,
-        backgroundColor: colors.slice(0, labels.length),
-        borderWidth: 2,
-        borderColor: '#2d2d2d'
+        backgroundColor: '#4CAF50',
+        borderColor: '#2E7D32',
+        borderWidth: 1
       }]
     },
     options: {
+      indexAxis: 'y',
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: {
-          position: 'bottom',
-          labels: {
-            color: '#ffffff',
-            padding: 20
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function (context) {
+              const entry = top[context.dataIndex]
+              return [
+                `Promedio: ${context.parsed.x.toFixed(2)}`,
+                `Evaluaciones: ${entry.evaluaciones}`
+              ]
+            }
           }
+        }
+      },
+      scales: {
+        x: {
+          min: 0,
+          max: 5,
+          ticks: { color: '#ffffff' },
+          grid: { color: 'rgba(255, 255, 255, 0.1)' }
+        },
+        y: {
+          ticks: { color: '#ffffff' },
+          grid: { color: 'rgba(255, 255, 255, 0.1)' }
         }
       }
     }
@@ -866,15 +865,14 @@ const updateBarChart = () => {
   const ctx = barChartRef.value?.getContext('2d')
   if (!ctx) return
   
-  // Validar que hay datos
-  if (!reportData.value || reportData.value.length === 0) {
+  const dataSrc = filteredData.value
+  if (!dataSrc || dataSrc.length === 0) {
     console.log('No hay datos para la gráfica de barras')
     return
   }
 
-  // Agrupar datos por puesto
   const puestoData = {}
-  reportData.value.forEach(item => {
+  dataSrc.forEach(item => {
     // Validar que el item tiene los campos necesarios
     if (item.puesto_nombre && item.promedio !== undefined && item.promedio !== null) {
       const puestoNombre = item.puesto_nombre.toString()
@@ -968,11 +966,11 @@ const initializeData = async () => {
   loadingProgress.value = 0
   
   try {
+    await loadEstaciones()
     await Promise.allSettled([
-      loadEstaciones(),
-      loadPuestos(),
-      loadReportData()
+      loadPuestos()
     ])
+    await loadReportData()
   } catch (error) {
     console.error('Error al inicializar datos:', error)
     showMessage('Error al cargar datos del sistema', 'error')
