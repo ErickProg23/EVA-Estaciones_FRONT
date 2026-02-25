@@ -140,6 +140,60 @@ export const roleService = {
       }
     }
   },
+
+  // Crear nuevo rol
+  createRole: async (roleData) => {
+    try {
+      const response = await apiClient.post('/api/roles/crear', roleData)
+      return {
+        success: true,
+        data: response.data,
+        message: response.data?.message || 'Rol creado correctamente'
+      }
+    } catch (error) {
+      console.error('Error en createRole:', error)
+      return {
+        success: false,
+        message: error.response?.data?.message || error.message || 'Error al crear rol'
+      }
+    }
+  },
+
+  // Actualizar rol (nombre u otros campos)
+  updateRole: async (id, roleData) => {
+    try {
+      const response = await apiClient.put(`/api/roles/${id}`, roleData)
+      return {
+        success: true,
+        data: response.data,
+        message: response.data?.message || 'Rol actualizado correctamente'
+      }
+    } catch (error) {
+      console.error('Error en updateRole:', error)
+      return {
+        success: false,
+        message: error.response?.data?.message || error.message || 'Error al actualizar rol'
+      }
+    }
+  },
+
+  // Activar/desactivar rol
+  setRoleStatus: async (id, activo) => {
+    try {
+      const response = await apiClient.put(`/api/roles/${id}/estado`, { activo })
+      return {
+        success: true,
+        data: response.data,
+        message: response.data?.message || (activo ? 'Rol activado' : 'Rol desactivado')
+      }
+    } catch (error) {
+      console.error('Error en setRoleStatus:', error)
+      return {
+        success: false,
+        message: error.response?.data?.message || error.message || 'Error al actualizar estado del rol'
+      }
+    }
+  }
 }
 
 export const puestoService = {

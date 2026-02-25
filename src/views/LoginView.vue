@@ -54,29 +54,24 @@
                 Iniciar Sesión
               </v-btn>
               
-              <!-- Mensaje de error -->
-              <v-alert
-                v-if="error"
-                type="error"
-                variant="tonal"
-                class="mb-4"
-                closable
-                @click:close="error = ''"
+              <!-- Snackbar para mensajes -->
+              <v-snackbar
+                v-model="showSnackbar"
+                :color="snackbarColor"
+                timeout="3000"
+                location="top right"
               >
-                <v-icon>mdi-alert-circle</v-icon>
-                {{ error }}
-              </v-alert>
-              
-              <!-- Mensaje de éxito -->
-              <v-alert
-                v-if="success"
-                type="success"
-                variant="tonal"
-                class="mb-4"
-              >
-                <v-icon>mdi-check-circle</v-icon>
-                {{ success }}
-              </v-alert>
+                {{ snackbarMessage }}
+                <template #actions>
+                  <v-btn
+                    color="white"
+                    variant="text"
+                    @click="showSnackbar = false"
+                  >
+                    Cerrar
+                  </v-btn>
+                </template>
+              </v-snackbar>
             </v-form>
           </v-card-text>
         </v-card>
@@ -102,8 +97,9 @@ const username = ref('')
 const password = ref('')
 const showPassword = ref(false)
 const loading = ref(false)
-const error = ref('')
-const success = ref('')
+const showSnackbar = ref(false)
+const snackbarMessage = ref('')
+const snackbarColor = ref('success')
 
 // ===== COMPUTED PROPERTIES =====
 const isMobile = computed(() => xs.value || sm.value)
@@ -122,8 +118,9 @@ const rules = {
 // ===== METHODS =====
 const handleLogin = async () => {
   loading.value = true
-  error.value = ''
-  success.value = ''
+  showSnackbar.value = false
+  snackbarMessage.value = ''
+  snackbarColor.value = 'success'
   
   try {
     const response = await fetch(`${API_URL}/api/login`, {
@@ -143,7 +140,9 @@ const handleLogin = async () => {
     
     if (response.ok) {
       // Login exitoso
-      success.value = '¡Inicio de sesión exitoso! Redirigiendo...'
+      snackbarMessage.value = data?.nombre ? `Bienvenido, ${data.nombre}` : 'Inicio de sesión exitoso'
+      snackbarColor.value = 'success'
+      showSnackbar.value = true
       
       sessionStorage.setItem('isAuthenticated', 'true')
       sessionStorage.setItem('username', username.value)
@@ -156,7 +155,8 @@ const handleLogin = async () => {
         sessionStorage.setItem('token', data.token)
       }
       
-      // Navegar inmediatamente sin setTimeout
+      // Pequeña pausa para mostrar el snackbar antes de redirigir
+      await new Promise(r => setTimeout(r, 700))
       const rolId = String(data.rol_id ?? sessionStorage.getItem('rol_id'))
       if (rolId === '4') {
         await router.push('/manuales/subir')
@@ -170,10 +170,14 @@ const handleLogin = async () => {
       
     } else {
       // Error del servidor
-      error.value = data.message || 'Credenciales inválidas. Por favor, verifica tu usuario y contraseña.'
+      snackbarMessage.value = data.message || 'Credenciales inválidas. Por favor, verifica tu usuario y contraseña.'
+      snackbarColor.value = 'error'
+      showSnackbar.value = true
     }
   } catch (err) {
-    error.value = 'Error de conexión con el servidor. Por favor, intenta nuevamente.'
+    snackbarMessage.value = 'Error de conexión con el servidor. Por favor, intenta nuevamente.'
+    snackbarColor.value = 'error'
+    showSnackbar.value = true
     console.error('Error de login:', err)
   } finally {
     loading.value = false

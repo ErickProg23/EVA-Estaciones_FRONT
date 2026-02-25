@@ -387,7 +387,9 @@ const loadRoles = async () => {
     roles.value = [
       { id: 1, nombre: 'Administrador' },
       { id: 2, nombre: 'Encargado' },
-      { id: 3, nombre: 'Capital humano' }
+      { id: 3, nombre: 'Capital humano' },
+      { id: 4, nombre: 'Mantenimiento' },
+      { id: 5, nombre: 'Administrativos' }
     ]
     
     dataLoadingStates.value.roles = true
@@ -540,6 +542,8 @@ const getRoleColor = (roleName) => {
     'ADMIN': 'red',
     'Encargado': 'orange',
     'Capital humano': 'blue',
+    'Mantenimiento': 'green',
+    'Administrativos': 'purple'
   }
   return colors[roleName] || 'grey'
 }

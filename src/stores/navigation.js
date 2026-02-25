@@ -103,6 +103,14 @@ export const useNavigationStore = defineStore('navigation', () => {
           allowedRoles: ['ADMIN']
         },
         {
+          title: 'Roles',
+          icon: 'mdi-shield-account',
+          value: 'roles',
+          route: '/administration/roles',
+          type: 'item',
+          allowedRoles: ['ADMIN']
+        },
+        {
           title: 'Bombas',
           icon: 'mdi-fuel',
           value: 'bombas',

@@ -17,6 +17,7 @@ import BombasView from '@/views/BombasView.vue'
 import LecturasComparativasView from '@/views/LecturasComparativasView.vue'
 import SolicitudesView from '@/views/SolicitudesView.vue'
 import AdminMaterialView from '@/views/AdminMaterialView.vue'
+import RolesView from '@/views/RolesView.vue'
 import InventarioView from '@/views/InventarioView.vue'
 
 
@@ -83,6 +84,12 @@ const routes = [
     path: '/administration/aspecto',
     name: 'aspecto',
     component: AspectoView,
+    meta: { requiresAuth: true, allowedRoles: ['ADMIN'] }
+  },
+  {
+    path: '/administration/roles',
+    name: 'roles',
+    component: RolesView,
     meta: { requiresAuth: true, allowedRoles: ['ADMIN'] }
   },
   {
