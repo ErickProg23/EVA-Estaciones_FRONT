@@ -160,13 +160,7 @@
             {{ formatNumber(volumenInicialPump(keyPump(item))) }}
           </template>
           <template #item.final="{ item }">
-            <v-text-field
-              v-model.number="volFinalByPump[keyPump(item)]"
-              type="number"
-              variant="outlined"
-              density="compact"
-              hide-details="auto"
-            />
+            {{ formatOptionalNumber(volumenFinalPump(keyPump(item))) }}
           </template>
           <template #item.difLecturas="{ item }">
             {{ formatNumber(diferenciaLecturasPumpUI(keyPump(item))) }}
@@ -331,6 +325,14 @@ function volumenInicialPump(key) {
   const v = Number(volInicialByPump[key] ?? NaN)
   return Number.isFinite(v) ? v : 0
 }
+function volumenFinalPump(key) {
+  const v = Number(volFinalByPump[key] ?? NaN)
+  return Number.isFinite(v) ? v : null
+}
+function formatOptionalNumber(val) {
+  const n = Number(val ?? NaN)
+  return Number.isFinite(n) ? formatNumber(n) : ''
+}
 function diferenciaLecturasPumpUI(key) {
   const finalV = Number(volFinalByPump[key] ?? NaN)
   if (Number.isFinite(finalV)) return finalV - volumenInicialPump(key)
@@ -409,6 +411,22 @@ async function loadVolInicial() {
       volInicialByPump[key] = lectura
     }
   } catch (e) {}
+}
+
+async function loadVolFinal() {
+  if (!estacionId) return
+  try {
+    const res = await bombaService.getLecturasManualUltimas(estacionId, fechaSeleccionada.value, turnoSeleccionado.value)
+    const list = res.success ? (Array.isArray(res.data) ? res.data : []) : []
+    Object.keys(volFinalByPump).forEach(k => delete volFinalByPump[k])
+    for (const it of list) {
+      const key = `${it.estacion_id}:${it.producto_id}:${String(it.numero_bomba)}`
+      const lectura = Number(it.cantidad ?? it.lectura ?? it.final ?? 0)
+      volFinalByPump[key] = lectura
+    }
+  } catch (e) {
+    Object.keys(volFinalByPump).forEach(k => delete volFinalByPump[k])
+  }
 }
 
 async function loadNexusTotales() {
@@ -605,6 +623,7 @@ async function saveTotals() {
 
 watch([fechaSeleccionada, turnoSeleccionado], async () => {
   await loadVolInicial()
+  await loadVolFinal()
   await loadDifLecturas()
   await loadNexusTotales()
 })
@@ -626,6 +645,7 @@ onMounted(async () => {
   await loadBombas()
   await loadPrecios()
   await loadVolInicial()
+  await loadVolFinal()
   await loadDifLecturas()
   await loadNexusTotales()
 })

@@ -53,7 +53,7 @@
             <v-card dark color="#2d2d2d">
               <v-card-title>
                 <v-icon left color="blue">mdi-chart-line</v-icon>
-                Tendencia de evaluaciones
+                Tendencia de calificación promedio
               </v-card-title>
               <v-card-text>
                 <canvas ref="lineChartRef" height="300"></canvas>
@@ -428,14 +428,18 @@ const crearGraficosEncargado = async (responseData) => {
   
   
   // ✅ CREAR GRÁFICO DE LÍNEAS CON VALIDACIÓN MEJORADA
-  const mensualArray = Array.isArray(data)
-    ? data
-    : (Array.isArray(data?.meses) ? data.meses : [])
+  const mensualArray = Array.isArray(data?.promedioMensual)
+    ? data.promedioMensual
+    : (Array.isArray(data) ? data : (Array.isArray(data?.meses) ? data.meses : []))
   if (lineChartRef.value && typeof lineChartRef.value.getContext === 'function' && mensualArray && mensualArray.length > 0) {
     try {
       const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
       const labels = mensualArray.map(item => meses[(Number(item.mes) || 1) - 1] || `Mes ${item.mes}`)
-      const valores = mensualArray.map(item => Number(item.evaluaciones) || 0)
+      const valores = mensualArray.map(item => {
+        const raw = item.promedio ?? item.promedio_calificacion ?? item.calificacion_promedio ?? item.promedioCalificacion ?? item.promedio_mensual
+        const num = Number(raw)
+        return Number.isFinite(num) ? num : 0
+      })
       const ctx = lineChartRef.value.getContext('2d')
       if (ctx) {
         if (lineChart) { lineChart.destroy(); lineChart = null }
@@ -444,7 +448,7 @@ const crearGraficosEncargado = async (responseData) => {
           data: {
             labels,
             datasets: [{
-              label: 'Evaluaciones por Mes',
+              label: 'Calificación promedio por Mes',
               data: valores,
               borderColor: '#4CAF50',
               backgroundColor: 'rgba(76, 175, 80, 0.1)',
@@ -457,7 +461,18 @@ const crearGraficosEncargado = async (responseData) => {
             plugins: { legend: { labels: { color: '#ffffff' } } },
             scales: {
               x: { ticks: { color: '#ffffff' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } },
-              y: { ticks: { color: '#ffffff' }, grid: { color: 'rgba(255, 255, 255, 0.1)' }, beginAtZero: true }
+              y: {
+                beginAtZero: true,
+                min: 0,
+                max: 100,
+                ticks: {
+                  color: '#ffffff',
+                  callback: function(value) {
+                    return value + '%'
+                  }
+                },
+                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+              }
             }
           }
         })

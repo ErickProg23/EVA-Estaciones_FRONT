@@ -181,16 +181,16 @@ const marcarPuestosEvaluados = async () => {
       año: y
     })
 
-    // Filtrar con seguridad por puesto y por mes/año actual
     let registros = Array.isArray(resRep.data) ? resRep.data : []
     registros = registros.filter(item => {
       const okPuesto = String(item.puesto_id) === String(puestoId)
-      // fecha_evaluacion suele venir; si no, intenta con item.mes/item.año si existen
+      const itemEstacionId = item.estacion_id ?? item.estacionId ?? item.station_id ?? item.estacion?.id ?? item.estacion?.estacion_id
+      const okEstacion = String(itemEstacionId) === String(estacionId)
       const d = item.fecha_evaluacion ? new Date(item.fecha_evaluacion) : null
       const itemMes = d ? (d.getMonth() + 1) : (Number(item.mes) || null)
       const itemAnio = d ? d.getFullYear() : (Number(item.año) || null)
       const okFecha = itemMes === m && itemAnio === y
-      return okPuesto && okFecha
+      return okPuesto && okEstacion && okFecha
     })
 
     evaluadoPorNombre[p.nombre] = registros.length > 0
@@ -344,11 +344,13 @@ const seleccionarPuesto = async (puesto) => {
   let registros = Array.isArray(resRep.data) ? resRep.data : []
   registros = registros.filter(item => {
     const okPuesto = String(item.puesto_id) === String(puestoId)
+    const itemEstacionId = item.estacion_id ?? item.estacionId ?? item.station_id ?? item.estacion?.id ?? item.estacion?.estacion_id
+    const okEstacion = String(itemEstacionId) === String(estacionId)
     const d = item.fecha_evaluacion ? new Date(item.fecha_evaluacion) : null
     const itemMes = d ? (d.getMonth() + 1) : (Number(item.mes) || null)
     const itemAnio = d ? d.getFullYear() : (Number(item.año) || null)
     const okFecha = itemMes === m && itemAnio === y
-    return okPuesto && okFecha
+    return okPuesto && okEstacion && okFecha
   })
   if (registros.length > 0) {
     mensaje.value = `Ya existe una evaluación de ${puesto.nombre} para este mes.`

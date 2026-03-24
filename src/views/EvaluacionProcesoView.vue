@@ -100,7 +100,6 @@
         <div v-if="aspectos.length > 0" class="summary-chips mb-2 d-flex align-center justify-end">
           <v-chip class="mr-2" color="blue" variant="flat">Puntos: {{ totalPuntos }}</v-chip>
           <v-chip class="mr-2" color="green" variant="flat">Porcentaje: {{ porcentajeTotal }}%</v-chip>
-          <v-chip color="orange" variant="flat">Ajustado: {{ porcentajeTotalAjustado }}%</v-chip>
         </div>
 
         <v-row class="mt-3" align="center">

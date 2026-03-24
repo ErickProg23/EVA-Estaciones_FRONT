@@ -929,14 +929,18 @@ const updateBarChart = () => {
           }
         },
         y: {
+          beginAtZero: true,
+          min: 0,
+          max: 100,
           ticks: {
-            color: '#ffffff'
+            color: '#ffffff',
+            callback: function(value) {
+              return value + '%'
+            }
           },
           grid: {
             color: 'rgba(255, 255, 255, 0.1)'
-          },
-          min: 0,
-          max: 5
+          }
         }
       }
     }
@@ -945,16 +949,94 @@ const updateBarChart = () => {
 
 // Exportar datos
 const exportData = async () => {
+  exporting.value = true
   try {
-    exporting.value = true
-    
-    // Simular exportación
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    
-    showMessage('Datos exportados correctamente', 'success')
+    if (!selectedMonth.value) {
+      showMessage('Selecciona un mes para exportar Calificaciones Individuales', 'warning')
+      return
+    }
+
+    const src = filteredData.value
+    if (!Array.isArray(src) || src.length === 0) {
+      showMessage('No hay datos para exportar con los filtros actuales', 'warning')
+      return
+    }
+
+    const agg = {}
+    for (const item of src) {
+      const empleado = item.empleado_nombre || 'Sin nombre'
+      const val = parseFloat(item.promedio)
+      if (!Number.isFinite(val)) continue
+      if (!agg[empleado]) {
+        agg[empleado] = {
+          sum: 0,
+          count: 0,
+          estacion: item.estacion_nombre || '',
+          puesto: item.puesto_nombre || ''
+        }
+      }
+      agg[empleado].sum += val
+      agg[empleado].count += 1
+    }
+
+    const rows = Object.entries(agg)
+      .map(([empleado, info]) => {
+        const promedio = info.count ? (info.sum / info.count) : 0
+        return {
+          año: Number(selectedYear.value) || '',
+          mes: getMonthName(Number(selectedMonth.value)),
+          empleado,
+          promedio: promedio.toFixed(2),
+          evaluaciones: info.count,
+          estacion: info.estacion,
+          puesto: info.puesto
+        }
+      })
+      .sort((a, b) => String(a.empleado).localeCompare(String(b.empleado)))
+
+    if (rows.length === 0) {
+      showMessage('No hay calificaciones individuales válidas para exportar', 'warning')
+      return
+    }
+
+    const escapeCsv = (value) => {
+      if (value === null || value === undefined) return ''
+      const s = String(value)
+      if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"'
+      return s
+    }
+
+    const header = ['Año', 'Mes', 'Empleado', 'Promedio (%)', 'Evaluaciones', 'Estación', 'Puesto']
+    const lines = [header.join(',')]
+    for (const r of rows) {
+      lines.push([
+        r.año,
+        r.mes,
+        r.empleado,
+        r.promedio,
+        r.evaluaciones,
+        r.estacion,
+        r.puesto
+      ].map(escapeCsv).join(','))
+    }
+
+    const csv = '\ufeff' + lines.join('\r\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+
+    const filename = `calificaciones_individuales_${Number(selectedYear.value) || ''}_${String(selectedMonth.value).padStart(2, '0')}.csv`
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+
+    showMessage('CSV exportado correctamente', 'success')
   } catch (error) {
     console.error('Error al exportar:', error)
-    showMessage('Error al exportar datos', 'error')
+    showMessage('Error al exportar CSV', 'error')
   } finally {
     exporting.value = false
   }

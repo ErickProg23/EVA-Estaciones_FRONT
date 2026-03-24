@@ -153,7 +153,7 @@ export const useNavigationStore = defineStore('navigation', () => {
       ]
     },
     {
-      title: 'Solicitudes',
+      title: 'Solicitudes de Material',
       icon: 'mdi-clipboard-check',
       value: 'solicitudes-group',
       type: 'group',
