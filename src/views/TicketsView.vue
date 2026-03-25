@@ -27,6 +27,16 @@
               </div>
               <div class="d-flex gap-2">
                 <v-btn 
+                  color="blue" 
+                  size="large" 
+                  class="text-none"
+                  @click="refreshTickets"
+                  :loading="loading"
+                >
+                  <v-icon left>mdi-refresh</v-icon>
+                  Actualizar
+                </v-btn>
+                <v-btn 
                   v-if="!isAdmin"
                   color="green" 
                   size="large" 
@@ -36,21 +46,12 @@
                   <v-icon left>mdi-plus</v-icon>
                   Nuevo Ticket
                 </v-btn>
-                <v-btn 
-                  v-if="isAdmin"
-                  color="green" 
-                  size="large" 
-                  @click="showStats = !showStats"
-                  class="text-none"
-                >
-                  <v-icon left>mdi-chart-line</v-icon>
-                  Estadísticas
-                </v-btn>
+
               </div>
             </div>
 
             <!-- Estadísticas (solo para ADMIN) -->
-            <v-card v-if="isAdmin && showStats" dark color="#2d2d2d" class="mb-4">
+            <v-card v-if="isAdmin" dark color="#2d2d2d" class="mb-4">
               <v-card-title>
                 <v-icon class="mr-2">mdi-chart-box</v-icon>
                 Estadísticas de Tickets
@@ -58,30 +59,30 @@
               <v-card-text>
                 <v-row>
                   <v-col cols="12" md="3">
-                    <v-card dark color="#1a1a1a" class="text-center pa-4">
-                      <v-icon size="40" color="blue" class="mb-2">mdi-ticket-outline</v-icon>
-                      <div class="text-h4 font-weight-bold">{{ stats.total || 0 }}</div>
+                    <v-card dark color="#1a1a1a" class="text-center pa-3">
+                      <v-icon size="32" color="blue" class="mb-2">mdi-ticket-outline</v-icon>
+                      <div class="text-h5 font-weight-bold">{{ stats.total || 0 }}</div>
                       <div class="text-caption">Total Tickets</div>
                     </v-card>
                   </v-col>
                   <v-col cols="12" md="3">
-                    <v-card dark color="#1a1a1a" class="text-center pa-4">
-                      <v-icon size="40" color="orange" class="mb-2">mdi-clock-outline</v-icon>
-                      <div class="text-h4 font-weight-bold">{{ stats.pendientes || 0 }}</div>
+                    <v-card dark color="#1a1a1a" class="text-center pa-3">
+                      <v-icon size="32" color="orange" class="mb-2">mdi-clock-outline</v-icon>
+                      <div class="text-h5 font-weight-bold">{{ stats.pendientes || 0 }}</div>
                       <div class="text-caption">Pendientes</div>
                     </v-card>
                   </v-col>
                   <v-col cols="12" md="3">
-                    <v-card dark color="#1a1a1a" class="text-center pa-4">
-                      <v-icon size="40" color="yellow" class="mb-2">mdi-progress-wrench</v-icon>
-                      <div class="text-h4 font-weight-bold">{{ stats.en_proceso || 0 }}</div>
+                    <v-card dark color="#1a1a1a" class="text-center pa-3">
+                      <v-icon size="32" color="yellow" class="mb-2">mdi-progress-wrench</v-icon>
+                      <div class="text-h5 font-weight-bold">{{ stats.en_proceso || 0 }}</div>
                       <div class="text-caption">En Proceso</div>
                     </v-card>
                   </v-col>
                   <v-col cols="12" md="3">
-                    <v-card dark color="#1a1a1a" class="text-center pa-4">
-                      <v-icon size="40" color="green" class="mb-2">mdi-check-circle</v-icon>
-                      <div class="text-h4 font-weight-bold">{{ stats.resueltos || 0 }}</div>
+                    <v-card dark color="#1a1a1a" class="text-center pa-3">
+                      <v-icon size="32" color="green" class="mb-2">mdi-check-circle</v-icon>
+                      <div class="text-h5 font-weight-bold">{{ stats.resueltos || 0 }}</div>
                       <div class="text-caption">Resueltos</div>
                     </v-card>
                   </v-col>
@@ -588,7 +589,6 @@ const selectedStation = ref(null)
 const editingTicket = ref(null)
 const viewingTicket = ref(null)
 const formValid = ref(false)
-const showStats = ref(false)
 
 // Estados de carga inicial
 const isInitialLoading = ref(true)
@@ -665,8 +665,7 @@ const userStation = computed(() => {
 const statusOptions = [
   { value: 1, title: 'Pendiente' },
   { value: 2, title: 'En Proceso' },
-  { value: 3, title: 'Resuelto' },
-  { value: 4, title: 'Cerrado' }
+  { value: 3, title: 'Resuelto' }
 ]
 
 const priorityOptions = [
@@ -717,7 +716,11 @@ const filteredTickets = computed(() => {
   // El backend ya filtra por creador_id automáticamente
   
   if (selectedStatus.value) {
-    filtered = filtered.filter(ticket => ticket.estado === selectedStatus.value)
+    filtered = filtered.filter(ticket => {
+      const st = Number(ticket.estado)
+      const normalized = st === 4 ? 3 : st
+      return normalized === Number(selectedStatus.value)
+    })
   }
   
   if (selectedPriority.value) {
@@ -738,23 +741,25 @@ const filteredTickets = computed(() => {
 
 // Funciones de utilidad
 const getStatusColor = (status) => {
+  const s = String(status ?? '')
+  const normalized = s === '4' ? '3' : s
   const colors = {
     '1': 'grey',
     '2': 'orange',
-    '3': 'green',
-    '4': 'blue'
+    '3': 'green'
   }
-  return colors[status] || 'grey'
+  return colors[normalized] || 'grey'
 }
 
 const getStatusText = (status) => {
+  const s = String(status ?? '')
+  const normalized = s === '4' ? '3' : s
   const texts = {
     '1': 'Pendiente',
     '2': 'En Proceso',
-    '3': 'Resuelto',
-    '4': 'Cerrado'
+    '3': 'Resuelto'
   }
-  return texts[status] || status
+  return texts[normalized] || normalized
 }
 
 const getPriorityColor = (priority) => {
@@ -767,12 +772,17 @@ const getPriorityColor = (priority) => {
 }
 
 const getPriorityText = (priority) => {
+  const p = String(priority ?? '')
+  const key = p.toLowerCase()
   const texts = {
-    'baja': 'Baja',
-    'media': 'Media',
-    'alta': 'Alta',
+    '1': 'Baja',
+    '2': 'Media',
+    '3': 'Alta',
+    baja: 'Baja',
+    media: 'Media',
+    alta: 'Alta'
   }
-  return texts[priority] || priority
+  return texts[key] || p
 }
 
 const formatDate = (dateString) => {
@@ -814,16 +824,17 @@ const loadTickets = async () => {
     if (result.success) {
       // ✅ NUEVO: Usar directamente la estructura del backend
       const ticketsArray = result.data.data || result.data || []
-      console.log('🔍 DEBUG - Array de tickets:', ticketsArray)
       
       // ✅ SIMPLIFICADO: Solo mapear estados y prioridades, mantener estructura original
       const processedTickets = Array.isArray(ticketsArray) ? ticketsArray.map(ticket => {
         // Mapear estados numéricos a texto para mostrar
+        const estadoNum = Number(ticket.estado)
+        const normalizedEstado = estadoNum === 4 ? 3 : estadoNum
         const estadoTexto = {
           1: 'Pendiente',
           2: 'En Proceso', 
-          3: 'Resuelto',
-        }[ticket.estado] || 'Pendiente'
+          3: 'Resuelto'
+        }[normalizedEstado] || 'Pendiente'
         
         // Mapear prioridades numéricas a texto para mostrar
         const prioridadTexto = {
@@ -839,6 +850,7 @@ const loadTickets = async () => {
         }[ticket.categoria] || 'Sin categoría'
         return {
           ...ticket,
+          estado: normalizedEstado,
           // Agregar campos de texto para mostrar en la tabla
           estado_texto: estadoTexto,
           prioridad_texto: prioridadTexto,
@@ -847,7 +859,6 @@ const loadTickets = async () => {
       }) : []
       
       tickets.value = processedTickets
-      console.log('🔍 DEBUG - Tickets procesados:', processedTickets)
     } else {
       tickets.value = []
       showMessage(result.error || 'Error al cargar tickets', 'error')
@@ -907,13 +918,41 @@ const loadStats = async () => {
     const result = await ticketService.getTicketStats()
     
     if (result.success) {
-      stats.value = result.data
+      const payload = result?.data?.data || result?.data || {}
+      const porEstado = payload?.por_estado && typeof payload.por_estado === 'object' ? payload.por_estado : {}
+
+      const total = Number(payload.total_tickets ?? payload.total ?? 0)
+      const pendientes = Number(porEstado.abierto ?? payload.pendientes ?? 0)
+      const enProceso = Number(porEstado.en_progreso ?? payload.en_proceso ?? 0)
+      const resueltosBase = Number(porEstado.resuelto ?? payload.resueltos ?? 0)
+      const cerrados = Number(porEstado.cerrado ?? 0)
+
+      stats.value = {
+        total: Number.isFinite(total) ? total : 0,
+        pendientes: Number.isFinite(pendientes) ? pendientes : 0,
+        en_proceso: Number.isFinite(enProceso) ? enProceso : 0,
+        resueltos: Number.isFinite(resueltosBase + cerrados) ? (resueltosBase + cerrados) : 0
+      }
     }
   } catch (error) {
     console.error('Error al cargar estadísticas:', error)
   } finally {
     dataLoadingStates.value.stats = true
     updateLoadingProgress()
+  }
+}
+
+const refreshTickets = async () => {
+  loading.value = true
+  try {
+    await loadTickets()
+    if (isAdmin.value) await loadStats()
+    showMessage('Listado de tickets actualizado', 'success')
+  } catch (error) {
+    console.error('Error al actualizar tickets:', error)
+    showMessage('Error al actualizar tickets', 'error')
+  } finally {
+    loading.value = false
   }
 }
 

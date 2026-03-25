@@ -50,7 +50,6 @@ export const userService = {
   getUsuarios: async () => {
     try {
       const response = await apiClient.get('/api/getUsuarios')
-      console.log('Respuesta de usuarios:', response.data)
       
       // El backend devuelve {success: true, usuarios: [...]}
       if (response.data && response.data.success) {
@@ -123,7 +122,6 @@ export const roleService = {
   getRoles: async () => {
     try {
       const response = await apiClient.get('/api/getRoles')
-      console.log('Respuesta de roles:', response.data)
       
       // El backend devuelve directamente el array de roles
       return {
@@ -267,9 +265,7 @@ export const stationService = {
   // Obtener todas las estaciones
   getEstaciones: async () => {
     try {
-      const response = await apiClient.get('/api/getEstaciones')
-      console.log('Respuesta de estaciones:', response.data)
-      
+      const response = await apiClient.get('/api/getEstaciones')      
       // El backend devuelve directamente el array de estaciones
       return {
         success: true,
@@ -317,7 +313,6 @@ export const empleadoService = {
   getEmpleados: async () => {
     try {
       const response = await apiClient.get('/api/getPersonal')
-      console.log('Respuesta de empleados:', response.data)
       
       // El backend devuelve directamente el array de empleados
       return {
@@ -329,7 +324,7 @@ export const empleadoService = {
       return {
         success: false,
         personal: [],
-
+        message: error.message || 'Error de conexión'
       }
     }
   },

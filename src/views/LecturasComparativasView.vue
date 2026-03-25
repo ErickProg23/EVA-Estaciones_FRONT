@@ -86,10 +86,19 @@
 
         <v-row class="mb-2 justify-end">
           <v-col cols="auto">
+            <v-btn color="info" class="mr-2" @click="openHistory" prepend-icon="mdi-history">
+              Histórico
+            </v-btn>
             <v-btn color="secondary" class="mr-2" @click="downloadPDF" prepend-icon="mdi-file-pdf-box">
               Exportar PDF
             </v-btn>
-            <v-btn color="primary" @click="saveTotals" prepend-icon="mdi-content-save">
+            <v-btn
+              color="primary"
+              @click="saveTotals"
+              prepend-icon="mdi-content-save"
+              :loading="savingTotals"
+              :disabled="!canSaveTotals"
+            >
               Guardar Totales
             </v-btn>
           </v-col>
@@ -170,17 +179,90 @@
           </template>
         </v-data-table>
 
-        <v-alert
-          v-if="mensaje.text"
-          :type="mensaje.type"
-          variant="tonal"
-          class="mt-4"
-          closable
-          @click:close="mensaje.text = ''"
-        >
-          <v-icon class="mr-2">{{ mensaje.icon }}</v-icon>
-          {{ mensaje.text }}
-        </v-alert>
+
+        <v-dialog v-model="showMsgDialog" max-width="420">
+          <v-card color="#2d2d2d">
+            <v-card-title class="d-flex align-center">
+              <v-icon class="mr-2" :color="mensaje.type === 'success' ? 'green' : (mensaje.type === 'error' ? 'red' : 'orange')">{{ mensaje.icon }}</v-icon>
+              Resultado
+            </v-card-title>
+            <v-card-text class="text-body-1">
+              {{ mensaje.text }}
+            </v-card-text>
+            <v-card-actions class="justify-end">
+              <v-btn color="primary" variant="elevated" @click="showMsgDialog = false">Aceptar</v-btn>
+            </v-card-actions>
+          </v-card>
+        </v-dialog>
+
+        <v-dialog v-model="historyDialog" max-width="1000">
+          <v-card color="#2d2d2d" dark>
+            <v-card-title class="d-flex align-center justify-space-between">
+              <span class="d-flex align-center">
+                <v-icon class="mr-2" color="info">mdi-history</v-icon>
+                Histórico de Totales
+              </span>
+              <v-btn icon variant="text" @click="historyDialog = false">
+                <v-icon>mdi-close</v-icon>
+              </v-btn>
+            </v-card-title>
+            <v-card-text>
+              <v-row class="mb-2" align="end">
+                <v-col cols="12" sm="5">
+                  <v-text-field
+                    v-model="historyFrom"
+                    label="Desde"
+                    type="date"
+                    variant="outlined"
+                    density="comfortable"
+                    hide-details="auto"
+                  />
+                </v-col>
+                <v-col cols="12" sm="5">
+                  <v-text-field
+                    v-model="historyTo"
+                    label="Hasta"
+                    type="date"
+                    variant="outlined"
+                    density="comfortable"
+                    hide-details="auto"
+                  />
+                </v-col>
+                <v-col cols="12" sm="2" class="d-flex justify-end">
+                  <v-btn color="info" variant="elevated" :loading="historyLoading" @click="fetchHistory" prepend-icon="mdi-magnify">
+                    Buscar
+                  </v-btn>
+                </v-col>
+              </v-row>
+
+              <v-data-table
+                :headers="historyHeaders"
+                :items="historyRows"
+                :loading="historyLoading"
+                density="compact"
+                class="transparent"
+                no-data-text="Sin registros guardados en el rango"
+              >
+                <template #item.nexus="{ item }">
+                  $ {{ formatOptionalMoney(item.nexus) }}
+                </template>
+                <template #item.importe="{ item }">
+                  <span v-if="item.importe != null">$ {{ formatOptionalMoney(item.importe) }}</span>
+                  <span v-else>—</span>
+                </template>
+                <template #item.diferencia="{ item }">
+                  <span v-if="item.diferencia != null">$ {{ formatOptionalMoney(item.diferencia) }}</span>
+                  <span v-else>—</span>
+                </template>
+                <template #item.acciones="{ item }">
+                  <v-btn size="small" color="primary" variant="tonal" @click="loadFromHistory(item)">
+                    Cargar
+                  </v-btn>
+                </template>
+              </v-data-table>
+            </v-card-text>
+          </v-card>
+        </v-dialog>
       </v-card-text>
     </v-card>
   </v-container>
@@ -205,6 +287,24 @@ const usuarioId = sessionStorage.getItem('usuario_id')
 const estacionId = sessionStorage.getItem('estacion_id')
 
 const mensaje = ref({ text: '', type: 'info', icon: 'mdi-information' })
+const savingTotals = ref(false)
+const lastSavedSignature = ref(null)
+const showMsgDialog = ref(false)
+
+const historyDialog = ref(false)
+const historyLoading = ref(false)
+const historyRows = ref([])
+const historyFrom = ref(shiftYMD(todayStr, -7))
+const historyTo = ref(todayStr)
+
+const historyHeaders = [
+  { title: 'Fecha', key: 'fecha', sortable: true },
+  { title: 'Turno', key: 'turno', sortable: true },
+  { title: 'Nexus (Total)', key: 'nexus', sortable: true },
+  { title: 'Importe (Total)', key: 'importe', sortable: true },
+  { title: 'Diferencia', key: 'diferencia', sortable: true },
+  { title: 'Acciones', key: 'acciones', sortable: false }
+]
 
 const bombas = ref([])
 const difLecturasApi = reactive({})       // key -> número (API)
@@ -317,6 +417,40 @@ function toYMD(val) {
   }
 }
 
+function shiftYMD(ymd, days) {
+  const d = new Date(`${String(ymd)}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return String(ymd)
+  d.setDate(d.getDate() + Number(days || 0))
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function listYMD(from, to) {
+  const a = new Date(`${String(from)}T00:00:00`)
+  const b = new Date(`${String(to)}T00:00:00`)
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return []
+  const start = a <= b ? a : b
+  const end = a <= b ? b : a
+  const out = []
+  const cur = new Date(start)
+  while (cur <= end) {
+    out.push(`${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`)
+    cur.setDate(cur.getDate() + 1)
+  }
+  return out
+}
+
+function diffDays(from, to) {
+  const a = new Date(`${String(from)}T00:00:00`)
+  const b = new Date(`${String(to)}T00:00:00`)
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return NaN
+  return Math.floor(Math.abs(b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+function formatOptionalMoney(val) {
+  const n = Number(val ?? NaN)
+  return Number.isFinite(n) ? formatMoney(n) : ''
+}
+
 function diferenciaLecturasPump(key) {
   const api = Number(difLecturasApi[key] ?? 0)
   return Number.isFinite(api) ? api : 0
@@ -350,6 +484,50 @@ const totalDifLecturasAll = computed(() => {
   let sum = 0
   for (const p of bombas.value) sum += diferenciaLecturasPumpUI(keyPump(p))
   return sum
+})
+
+const currentTotalsSignature = computed(() => {
+  if (!estacionId) return ''
+
+  const detalles = {}
+  const getDifLect = (pid) => {
+    let sum = 0
+    for (const p of bombas.value) {
+      if (productoId(p) === pid) {
+        sum += diferenciaLecturasPump(keyPump(p))
+      }
+    }
+    return sum
+  }
+
+  for (const pid of [1, 2, 3]) {
+    const difLect = getDifLect(pid)
+    const precio = Number(preciosPorProducto[pid] ?? 0)
+    const difPesos = difLect * precio
+    const nexus = Number(nexusTotales[pid] ?? 0)
+
+    detalles[pid] = {
+      nexus: Number.isFinite(nexus) ? Number(nexus.toFixed(4)) : 0,
+      dif_lect: Number.isFinite(difLect) ? Number(difLect.toFixed(4)) : 0,
+      precio: Number.isFinite(precio) ? Number(precio.toFixed(4)) : 0,
+      dif_pesos: Number.isFinite(difPesos) ? Number(difPesos.toFixed(4)) : 0
+    }
+  }
+
+  return JSON.stringify({
+    estacion_id: String(estacionId),
+    fecha: fechaSeleccionada.value,
+    turno: Number(turnoSeleccionado.value),
+    detalles
+  })
+})
+
+const canSaveTotals = computed(() => {
+  const sig = currentTotalsSignature.value
+  if (!sig) return false
+  if (savingTotals.value) return false
+  if (lastSavedSignature.value && sig === lastSavedSignature.value) return false
+  return true
 })
 
 async function loadBombas() {
@@ -433,24 +611,35 @@ async function loadNexusTotales() {
   if (!estacionId) return
   try {
     const res = await bombaService.getComparativaTotales(estacionId, fechaSeleccionada.value, turnoSeleccionado.value)
-    if (res.success && res.detalles) {
-      nexusTotales[1] = res.detalles['1']?.nexus || 0
-      nexusTotales[2] = res.detalles['2']?.nexus || 0
-      nexusTotales[3] = res.detalles['3']?.nexus || 0
-      
-      // Restore saved prices to ensure historical accuracy
-      if (res.detalles['1']?.precio) preciosPorProducto[1] = res.detalles['1'].precio
-      if (res.detalles['2']?.precio) preciosPorProducto[2] = res.detalles['2'].precio
-      if (res.detalles['3']?.precio) preciosPorProducto[3] = res.detalles['3'].precio
-    } else if (res.success && res.nexus_totales) {
-      nexusTotales[1] = res.nexus_totales['1'] || 0
-      nexusTotales[2] = res.nexus_totales['2'] || 0
-      nexusTotales[3] = res.nexus_totales['3'] || 0
+
+    const detallesObj = res?.detalles && typeof res.detalles === 'object' ? res.detalles : {}
+    const nexusObj = res?.nexus_totales && typeof res.nexus_totales === 'object' ? res.nexus_totales : {}
+    const hasDetalles = Object.keys(detallesObj).length > 0
+    const hasNexus = Object.keys(nexusObj).length > 0
+
+    if (res.success && hasDetalles) {
+      nexusTotales[1] = detallesObj['1']?.nexus || 0
+      nexusTotales[2] = detallesObj['2']?.nexus || 0
+      nexusTotales[3] = detallesObj['3']?.nexus || 0
+
+      if (detallesObj['1']?.precio) preciosPorProducto[1] = detallesObj['1'].precio
+      if (detallesObj['2']?.precio) preciosPorProducto[2] = detallesObj['2'].precio
+      if (detallesObj['3']?.precio) preciosPorProducto[3] = detallesObj['3'].precio
+
+      lastSavedSignature.value = currentTotalsSignature.value || lastSavedSignature.value
+    } else if (res.success && hasNexus) {
+      nexusTotales[1] = nexusObj['1'] || 0
+      nexusTotales[2] = nexusObj['2'] || 0
+      nexusTotales[3] = nexusObj['3'] || 0
+
+      lastSavedSignature.value = currentTotalsSignature.value || lastSavedSignature.value
     } else {
       resetNexusTotales()
+      lastSavedSignature.value = null
     }
   } catch (e) {
     resetNexusTotales()
+    lastSavedSignature.value = null
   }
 }
 
@@ -579,46 +768,157 @@ function downloadPDF() {
 
 async function saveTotals() {
   if (!estacionId) return
-  
-  const detalles = {}
-  
-  const getDifLect = (pid) => {
-    let sum = 0
-    for (const p of bombas.value) {
-        if (productoId(p) === pid) {
-            sum += diferenciaLecturasPump(keyPump(p))
-        }
-    }
-    return sum
+
+  const sig = currentTotalsSignature.value
+  if (!sig) {
+    mensaje.value = { text: 'No hay datos para guardar', type: 'warning', icon: 'mdi-alert' }
+    showMsgDialog.value = true
+    return
+  }
+  if (lastSavedSignature.value && sig === lastSavedSignature.value) {
+    mensaje.value = { text: 'Ya se guardaron estos totales. No hay cambios por guardar.', type: 'info', icon: 'mdi-information' }
+    showMsgDialog.value = true
+    return
   }
 
-  for (const pid of [1, 2, 3]) {
+  savingTotals.value = true
+  try {
+    const detalles = {}
+
+    const getDifLect = (pid) => {
+      let sum = 0
+      for (const p of bombas.value) {
+        if (productoId(p) === pid) {
+          sum += diferenciaLecturasPump(keyPump(p))
+        }
+      }
+      return sum
+    }
+
+    for (const pid of [1, 2, 3]) {
       const difLect = getDifLect(pid)
       const precio = Number(preciosPorProducto[pid] ?? 0)
       const difPesos = difLect * precio
       const nexus = Number(nexusTotales[pid] ?? 0)
 
       detalles[pid] = {
-          nexus: nexus,
-          dif_lect: difLect,
-          precio: precio,
-          dif_pesos: difPesos
+        nexus,
+        dif_lect: difLect,
+        precio,
+        dif_pesos: difPesos
       }
+    }
+
+    const data = {
+      estacion_id: estacionId,
+      fecha: fechaSeleccionada.value,
+      turno: turnoSeleccionado.value,
+      detalles
+    }
+
+    const res = await bombaService.saveComparativaTotales(data)
+    if (res.success) {
+      lastSavedSignature.value = currentTotalsSignature.value
+      mensaje.value = { text: 'Totales guardados correctamente', type: 'success', icon: 'mdi-check' }
+      showMsgDialog.value = true
+    } else {
+      mensaje.value = { text: res.message || 'Error al guardar', type: 'error', icon: 'mdi-alert' }
+      showMsgDialog.value = true
+    }
+  } catch (error) {
+    mensaje.value = { text: error?.message || 'Error al guardar', type: 'error', icon: 'mdi-alert' }
+    showMsgDialog.value = true
+  } finally {
+    savingTotals.value = false
+  }
+}
+
+function openHistory() {
+  historyDialog.value = true
+  if (historyRows.value.length === 0) fetchHistory()
+}
+
+async function fetchHistory() {
+  if (!estacionId) return
+
+  const from = historyFrom.value
+  const to = historyTo.value
+  const span = diffDays(from, to)
+  if (!Number.isFinite(span)) {
+    mensaje.value = { text: 'Rango de fechas inválido', type: 'warning', icon: 'mdi-alert' }
+    showMsgDialog.value = true
+    return
+  }
+  if (span > 31) {
+    mensaje.value = { text: 'El rango máximo es de 31 días', type: 'warning', icon: 'mdi-alert' }
+    showMsgDialog.value = true
+    return
   }
 
-  const data = {
-    estacion_id: estacionId,
-    fecha: fechaSeleccionada.value,
-    turno: turnoSeleccionado.value,
-    detalles: detalles
-  }
+  historyLoading.value = true
+  try {
+    const days = listYMD(from, to)
+    const rows = []
 
-  const res = await bombaService.saveComparativaTotales(data)
-  if (res.success) {
-    mensaje.value = { text: 'Totales guardados correctamente', type: 'success', icon: 'mdi-check' }
-  } else {
-    mensaje.value = { text: res.message || 'Error al guardar', type: 'error', icon: 'mdi-alert' }
+    for (const day of days) {
+      for (const t of [1, 2, 3]) {
+        const res = await bombaService.getComparativaTotales(estacionId, day, t)
+        if (!res?.success) continue
+
+        const detallesObj = res?.detalles && typeof res.detalles === 'object' ? res.detalles : {}
+        const nexusObj = res?.nexus_totales && typeof res.nexus_totales === 'object' ? res.nexus_totales : {}
+        const hasDetalles = Object.keys(detallesObj).length > 0
+        const hasNexus = Object.keys(nexusObj).length > 0
+        if (!hasDetalles && !hasNexus) continue
+
+        let totalNexus = 0
+        let totalImporte = 0
+        let hasImporte = false
+
+        for (const pid of ['1', '2', '3']) {
+          const det = detallesObj[pid]
+          if (det && typeof det === 'object') {
+            const nx = Number(det.nexus ?? 0)
+            const imp = Number(det.dif_pesos ?? NaN)
+            if (Number.isFinite(nx)) totalNexus += nx
+            if (Number.isFinite(imp)) {
+              totalImporte += imp
+              hasImporte = true
+            }
+          } else if (hasNexus) {
+            const nx = Number(nexusObj[pid] ?? 0)
+            if (Number.isFinite(nx)) totalNexus += nx
+          }
+        }
+
+        rows.push({
+          fecha: day,
+          turno: t,
+          nexus: totalNexus,
+          importe: hasImporte ? totalImporte : null,
+          diferencia: hasImporte ? (totalNexus - totalImporte) : null
+        })
+      }
+    }
+
+    rows.sort((a, b) => {
+      if (a.fecha !== b.fecha) return String(b.fecha).localeCompare(String(a.fecha))
+      return Number(b.turno) - Number(a.turno)
+    })
+
+    historyRows.value = rows
+  } catch (error) {
+    mensaje.value = { text: error?.message || 'Error al consultar historial', type: 'error', icon: 'mdi-alert' }
+    showMsgDialog.value = true
+  } finally {
+    historyLoading.value = false
   }
+}
+
+function loadFromHistory(item) {
+  fechaSeleccionada.value = String(item.fecha)
+  turnoSeleccionado.value = Number(item.turno)
+  historyDialog.value = false
 }
 
 watch([fechaSeleccionada, turnoSeleccionado], async () => {
