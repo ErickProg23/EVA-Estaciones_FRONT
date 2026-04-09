@@ -114,7 +114,7 @@ const routes = [
     component: TicketsView,
     meta: {
       requiresAuth: true,
-      allowedRoles: ['ADMIN', 'Encargado'],
+      allowedRoles: ['ADMIN', 'Encargado', 'Administrativo'],
       title: 'Gestion de tickets'
     }
   },

@@ -308,6 +308,19 @@
                   required
                 ></v-select>
               </v-col>
+              <v-col cols="12">
+                <v-select
+                  v-if="mostrarReparaciones"
+                  v-model="ticketForm.reparacion"
+                  :items="reparacionOptions"
+                  item-title="title"
+                  item-value="value"
+                  label="Equipo a reparar"
+                  variant="outlined"
+                  dark
+                  required
+                ></v-select>
+              </v-col>
             </v-row>
           </v-form>
         </v-card-text>
@@ -428,12 +441,12 @@
                   
                   <div class="mb-3">
                     <div class="text-caption text-grey-400">Estación</div>
-                    <div class="text-body-2">{{ viewingTicket.estacion?.nombre }}</div>
+                    <div class="text-body-2">{{ ticketStationName || '-' }}</div>
                   </div>
                   
                   <div class="mb-3">
                     <div class="text-caption text-grey-400">Creado por</div>
-                    <div class="text-body-2">{{ viewingTicket.usuario?.nombre }}</div>
+                    <div class="text-body-2">{{ ticketCreatorName || '-' }}</div>
                   </div>
                   
                   <div class="mb-3">
@@ -441,14 +454,19 @@
                     <div class="text-body-2">{{ formatDate(viewingTicket.fecha_creacion) }}</div>
                   </div>
                   
-                  <div v-if="viewingTicket.tecnico" class="mb-3">
+                  <div v-if="ticketAssignedName" class="mb-3">
                     <div class="text-caption text-grey-400">Asignado a</div>
-                    <div class="text-body-2">{{ viewingTicket.tecnico?.nombre }}</div>
+                    <div class="text-body-2">{{ ticketAssignedName }}</div>
                   </div>
                   
                   <div v-if="viewingTicket.fecha_resolucion" class="mb-3">
                     <div class="text-caption text-grey-400">Fecha resolución</div>
                     <div class="text-body-2">{{ formatDate(viewingTicket.fecha_resolucion) }}</div>
+                  </div>
+
+                  <div v-if="mostrarReparacionesDetalle" class="mb-3">
+                    <div class="text-caption text-grey-400">Reparación</div>
+                    <div class="text-body-2">{{ getReparacionText(viewingTicket.reparacion) }}</div>
                   </div>
                 </v-card-text>
               </v-card>
@@ -679,8 +697,67 @@ const categoryOptions = [
   { value: 'equipos', title: 'Equipos' },
   { value: 'internet', title: 'Internet' },
   { value: 'nexus', title: 'Nexus' },
-  { value: 'programas', title: 'Programas'}
+  { value: 'programas', title: 'Programas'},
+  { value: 'reparacion', title: 'Reparacion'},
 ]
+
+const reparacionOptions = [
+  { value: 'terminales', title: 'Terminales'},
+  { value: 'impresora', title: 'Impresora' },
+  { value: 'camara', title: 'Camara' },
+  { value: 'tablet', title: 'Tablets' },
+  { value: 'otro', title: 'Otro'}
+]
+
+const mostrarReparaciones = computed(() => {
+  return ticketForm.value.categoria === 'reparacion'
+})
+
+const mostrarReparacionesDetalle = computed(() => {
+  const cat = String(viewingTicket.value?.categoria ?? '').toLowerCase()
+  return cat === 'reparacion'
+})
+
+const ticketStationName = computed(() => {
+  const t = viewingTicket.value
+  if (!t) return ''
+  const fromTicket = t.estacion?.nombre || t.estacion_nombre || t.estacionName || ''
+  if (fromTicket) return fromTicket
+  const estId = t.estacion_id
+  const match = estaciones.value.find(e => Number(e.id) === Number(estId))
+  return match?.nombre || ''
+})
+
+const ticketCreatorName = computed(() => {
+  const t = viewingTicket.value
+  if (!t) return ''
+  return (
+    t.usuario?.nombre ||
+    t.creador?.nombre ||
+    t.usuario_nombre ||
+    t.creador_nombre ||
+    t.creador?.usuario ||
+    ''
+  )
+})
+
+const ticketAssignedName = computed(() => {
+  const t = viewingTicket.value
+  if (!t) return ''
+  return (
+    t.tecnico?.nombre ||
+    t.asignado?.nombre ||
+    t.asignado_nombre ||
+    ''
+  )
+})
+
+const getReparacionText = (value) => {
+  const v = String(value ?? '')
+  if (!v) return '-'
+  const opt = reparacionOptions.find(o => String(o.value) === v)
+  return opt?.title || v
+}
 
 // Headers de la tabla
 const headers = computed(() => {
@@ -818,9 +895,19 @@ const loadTickets = async () => {
   try {
     loadingMessage.value = 'Cargando tickets...'
     let result
-    
-    result = await ticketService.getTickets()
-    
+
+    if (isAdmin.value) {
+      result = await ticketService.getTickets()
+    } else {
+      const usuarioId = currentUser.value?.id
+      if (!usuarioId) {
+        tickets.value = []
+        showMessage('Error: Usuario no autenticado', 'error')
+        return
+      }
+      result = await ticketService.getTicketsByUsuario(usuarioId)
+    }
+
     if (result.success) {
       // ✅ NUEVO: Usar directamente la estructura del backend
       const ticketsArray = result.data.data || result.data || []
@@ -844,9 +931,12 @@ const loadTickets = async () => {
         }[ticket.prioridad] || 'Media'
         
         const categoriaTexto = {
-          equipos: 'Equipos',
+          terminales: 'Terminales',
           internet: 'Internet',
-          erp: 'Sistema ERP'
+          reparacion: 'Reparacion',
+          programas: 'Programas',
+          nexus: 'Nexus',
+          otro: 'Otro',
         }[ticket.categoria] || 'Sin categoría'
         return {
           ...ticket,

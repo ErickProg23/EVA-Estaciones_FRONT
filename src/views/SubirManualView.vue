@@ -3,7 +3,7 @@
   <v-container fluid class="py-4">
     <v-card color="#2d2d2d" dark>
       <v-card-title class="text-h6">
-        Lecturas manuales por bomba
+        Lecturas
       </v-card-title>
 
       <v-card-text>
@@ -61,34 +61,59 @@
           <v-tab value="Diesel">Diesel</v-tab>
         </v-tabs>
 
-        <!-- Grilla 2 columnas en tablet -->
         <v-row>
-          <v-col
-            v-for="pump in currentPumps"
-            :key="pump.numero_bomba"
-            cols="12"
-            sm="6"
-          >
+          <v-col cols="12">
+            <div class="text-subtitle-2 mb-2">Selecciona una bomba</div>
+            <v-slide-group
+              v-model="selectedPumpKey"
+              show-arrows
+              class="pump-selector"
+            >
+              <v-slide-group-item
+                v-for="p in currentPumps"
+                :key="pumpKey(p)"
+                :value="pumpKey(p)"
+              >
+                <template #default="{ toggle }">
+                  <v-btn
+                    class="ma-2 pump-selector__btn"
+                    size="x-large"
+                    rounded="xl"
+                    variant="tonal"
+                    :color="pumpSelectorColor(p)"
+                    @click="toggle"
+                  >
+                    <v-icon start v-if="selectedPumpKey === pumpKey(p)">mdi-pencil</v-icon>
+                    <v-icon start v-else-if="pumpIsComplete(p)">mdi-check-circle</v-icon>
+                    <v-icon start v-else>mdi-gas-station</v-icon>
+                    {{ pumpLabel(p) }}
+                  </v-btn>
+                </template>
+              </v-slide-group-item>
+            </v-slide-group>
+          </v-col>
+
+          <v-col cols="12" v-if="selectedPump && selectedPumpStateKey">
             <v-card color="#3a3a3a" class="pump-card">
-              <v-card-title class="py-2 text-body-2">{{ pumpLabel(pump) }}</v-card-title>
+              <v-card-title class="py-2 text-body-2">{{ pumpLabel(selectedPump) }}</v-card-title>
               <v-card-text>
                 <v-text-field
-                  :model-value="formatNumber(pumpStates[pumpKey(pump)]?.inicio ?? 0)"
+                  :model-value="formatNumber(pumpStates[selectedPumpStateKey]?.inicio ?? 0)"
                   label="Inicio (auto)"
                   variant="outlined"
                   density="comfortable"
                   readonly
                 />
                 <v-text-field
-                  v-model="pumpStates[pumpKey(pump)].final"
+                  v-model="pumpStates[selectedPumpStateKey].final"
                   type="text"
                   inputmode="numeric"
                   label="Final"
+                  :rules="reglaFinal(selectedPumpStateKey)"
                   variant="outlined"
                   density="comfortable"
-                  :error-messages="getFinalError(pumpKey(pump))"
+                  :error-messages="getFinalError(selectedPumpStateKey)"
                 />
-
               </v-card-text>
             </v-card>
           </v-col>
@@ -163,6 +188,21 @@ function normalizeProducto(prod) {
   return 'Magna'
 }
 
+function reglaFinal(key){
+  return [
+    v => (v != null && String(v).trim() !== '') || 'Valor requerido',
+    v => {
+      const n = parseLectura(v)
+      if (!Number.isFinite(n))
+      return true
+      const inicio = Number
+      (pumpStates[key].inicio ?? 0)
+      return n >= inicio || `Debe ser mayor a ${inicio}` 
+    }
+  ]
+}
+
+
 function productoIdFromPump(p) {
   const id = Number(p?.producto?.id ?? p?.producto_id ?? NaN)
   if (Number.isFinite(id)) return id
@@ -233,6 +273,33 @@ function numeroVisibleBomba(p) {
 
 // Producto seleccionado para pestañas
 const selectedProduct = ref('Magna')
+const selectedPumpKey = ref('')
+
+const selectedPump = computed(() => {
+  const arr = currentPumps.value
+  if (!arr.length) return null
+  if (!selectedPumpKey.value) return null
+  return arr.find(p => pumpKey(p) === selectedPumpKey.value) || null
+})
+
+const selectedPumpStateKey = computed(() => {
+  return selectedPump.value ? selectedPumpKey.value : ''
+})
+
+function pumpIsComplete(p) {
+  const key = pumpKey(p)
+  ensurePumpState(key)
+  const raw = pumpStates[key].final
+  const n = parseLectura(raw)
+  return raw != null && raw !== '' && Number.isFinite(n) && n > 0 && getFinalError(key).length === 0
+}
+
+function pumpSelectorColor(p) {
+  const key = pumpKey(p)
+  if (selectedPumpKey.value === key) return 'green'
+  if (pumpIsComplete(p)) return 'green-darken-2'
+  return 'grey-darken-1'
+}
 
 // Validaciones y cálculos
 function formatNumber(val) {
@@ -388,12 +455,15 @@ async function loadBombas() {
       pumps.value = Array.isArray(res.data) ? res.data : []
       pumps.value.forEach(p => ensurePumpState(pumpKey(p)))
       recalcularInicioAll()
+      selectedPumpKey.value = ''
     } else {
       pumps.value = []
+      selectedPumpKey.value = ''
     }
   } catch (e) {
     console.error('Error al cargar bombas', e)
     pumps.value = []
+    selectedPumpKey.value = ''
   }
 }
 
@@ -410,6 +480,7 @@ watch([fechaSeleccionada, turnoSeleccionado], async () => {
 watch(selectedProduct, () => {
   currentPumps.value.forEach(p => ensurePumpState(pumpKey(p)))
   recalcularInicioAll()
+  selectedPumpKey.value = ''
 })
 
 onMounted(async () => {
@@ -442,6 +513,17 @@ onMounted(async () => {
   margin-top: 6px;
   color: #c8c8c8;
   font-size: 0.9rem;
+}
+
+.pump-selector :deep(.v-slide-group__content) {
+  padding: 4px 0;
+}
+
+.pump-selector__btn {
+  min-width: 170px;
+  height: 64px;
+  font-size: 1.05rem;
+  letter-spacing: 0.2px;
 }
 
 /* Tarjeta de bomba con más espacio táctil */

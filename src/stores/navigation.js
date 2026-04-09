@@ -36,7 +36,7 @@ export const useNavigationStore = defineStore('navigation', () => {
       value: 'tickets',
       route: '/tickets',
       type: 'item',
-      allowedRoles: ['ADMIN', 'Encargado']
+      allowedRoles: ['ADMIN', 'Encargado', 'Administrativo']
     },
     {
       title: 'Reportes',
