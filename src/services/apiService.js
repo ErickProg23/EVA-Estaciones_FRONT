@@ -976,6 +976,16 @@ export const bombaService = {
     }
   },
 
+  async getConfiguracionesLitrosUsuario(usuarioId) {
+    try {
+      const response = await apiClient.get(`/api/usuario/${usuarioId}`)
+      return { success: true, data: response.data, message: 'Configuraciones de litros obtenidas' }
+    } catch (error) {
+      console.error('Error en getConfiguracionesLitrosUsuario:', error)
+      return { success: false, data: null, message: error.response?.data?.error || error.response?.data?.message || error.message || 'Error de conexión' }
+    }
+  },
+
   async guardarLecturaManual(lecturaData) {
     try {
       const response = await apiClient.post('/api/guardarLecturaManual', lecturaData)

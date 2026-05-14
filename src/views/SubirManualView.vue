@@ -113,6 +113,8 @@
                   variant="outlined"
                   density="comfortable"
                   :error-messages="getFinalError(selectedPumpStateKey)"
+                  :messages="getFinalWarning(selectedPumpStateKey)"
+                  :append-inner-icon="getFinalWarning(selectedPumpStateKey).length ? 'mdi-alert' : undefined"
                 />
               </v-card-text>
             </v-card>
@@ -173,6 +175,7 @@ const usuarioId = sessionStorage.getItem('usuario_id')
 const estacionId = sessionStorage.getItem('estacion_id')
 
 const pumps = ref([])
+const limitesMaxLitrosPorProductoId = ref({})
 
 function normalizeProducto(prod) {
   const id = typeof prod === 'object' && prod !== null ? Number(prod.id ?? NaN) : typeof prod === 'number' ? prod : NaN
@@ -193,11 +196,9 @@ function reglaFinal(key){
     v => (v != null && String(v).trim() !== '') || 'Valor requerido',
     v => {
       const n = parseLectura(v)
-      if (!Number.isFinite(n))
-      return true
-      const inicio = Number
-      (pumpStates[key].inicio ?? 0)
-      return n >= inicio || `Debe ser mayor a ${inicio}` 
+      if (!Number.isFinite(n)) return true
+      const inicio = Number(pumpStates[key].inicio ?? 0)
+      return n >= inicio || `Debe ser mayor o igual a ${formatNumber(inicio)}`
     }
   ]
 }
@@ -211,6 +212,50 @@ function productoIdFromPump(p) {
   if (name === 'Premium') return 2
   if (name === 'Diesel') return 3
   return NaN
+}
+
+function productoIdFromPumpStateKey(key) {
+  const parts = String(key ?? '').split(':')
+  const id = Number(parts[1] ?? NaN)
+  return Number.isFinite(id) ? id : NaN
+}
+
+function limiteMaxLitrosForKey(key) {
+  const productoId = productoIdFromPumpStateKey(key)
+  if (!Number.isFinite(productoId)) return NaN
+  const val = Number(limitesMaxLitrosPorProductoId.value?.[productoId] ?? NaN)
+  return Number.isFinite(val) ? val : NaN
+}
+
+function getFinalWarning(pumpStateKey) {
+  if (!pumpStateKey) return []
+  ensurePumpState(pumpStateKey)
+  const raw = pumpStates[pumpStateKey].final
+  if (raw == null || raw === '') return []
+  const n = parseLectura(raw)
+  if (!Number.isFinite(n)) return []
+  const inicio = Number(pumpStates[pumpStateKey].inicio ?? 0)
+  const limite = limiteMaxLitrosForKey(pumpStateKey)
+  if (!Number.isFinite(limite) || limite <= 0) return []
+  const diff = n - inicio
+  if (Number.isFinite(diff) && diff > limite) return [`Advertencia: diferencia ${formatNumber(diff)} supera el límite ${formatNumber(limite)}`]
+  return []
+}
+
+async function loadLimitesMaxLitros() {
+  if (!usuarioId) return
+  try {
+    const res = await bombaService.getConfiguracionesLitrosUsuario(usuarioId)
+    if (!res.success) return
+    const configuraciones = Array.isArray(res.data?.configuraciones) ? res.data.configuraciones : []
+    const map = {}
+    for (const c of configuraciones) {
+      const productoId = Number(c?.producto_id ?? c?.producto ?? NaN)
+      const limite = Number(c?.limite_max_litros ?? NaN)
+      if (Number.isFinite(productoId) && Number.isFinite(limite)) map[productoId] = limite
+    }
+    limitesMaxLitrosPorProductoId.value = map
+  } catch {}
 }
 
 const pumpsByProduct = computed(() => {
@@ -298,6 +343,7 @@ function pumpSelectorColor(p) {
   const key = pumpKey(p)
   if (selectedPumpKey.value === key) return 'green'
   if (pumpIsComplete(p)) return 'green-darken-2'
+  if (getFinalWarning(key).length) return 'amber-darken-2'
   return 'grey-darken-1'
 }
 
@@ -372,6 +418,8 @@ function getFinalError(pumpNumero) {
   if (raw == null || raw === '') return []
   const n = parseLectura(raw)
   if (!Number.isFinite(n)) return ['Debe ser un número']
+  const inicio = Number(pumpStates[pumpNumero].inicio ?? 0)
+  if (n < inicio) return [`Debe ser mayor o igual a ${formatNumber(inicio)}`]
   return []
 }
 
@@ -484,6 +532,7 @@ watch(selectedProduct, () => {
 })
 
 onMounted(async () => {
+  await loadLimitesMaxLitros()
   await loadBombas()
   await loadPrevLecturas()
   recalcularInicioAll()
