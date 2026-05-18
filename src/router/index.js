@@ -18,7 +18,6 @@ import LecturasComparativasView from '@/views/LecturasComparativasView.vue'
 import SolicitudesView from '@/views/SolicitudesView.vue'
 import AdminMaterialView from '@/views/AdminMaterialView.vue'
 import RolesView from '@/views/RolesView.vue'
-import InventarioView from '@/views/InventarioView.vue'
 
 
 

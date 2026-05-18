@@ -1,4 +1,5 @@
 <template>
+
   <div class="fade-in">
     <v-container fluid class="pa-6">
       <div class="d-flex align-center justify-space-between mb-6">
@@ -7,24 +8,52 @@
             <v-icon class="mr-3" color="green">mdi-oil</v-icon>
             Productos
           </h1>
-          <p class="text-grey-400 ma-0">Catálogo de productos de combustible</p>
+          <p class="text-grey-400 ma-0">
+            Catálogo de productos de combustible
+            <span v-if="isAdmin && selectedEstacionNombre">· {{ selectedEstacionNombre }}</span>
+          </p>
         </div>
       </div>
 
       <LoadingWave
-        v-if="loading"
-        :show="loading"
+        v-if="loading && showLoadingOverlay"
+        :show="loading && showLoadingOverlay"
         title="Cargando Productos"
         message="Obteniendo catálogo de productos"
         icon="mdi-oil"
       />
 
-      <v-card v-else dark color="#2d2d2d">
+      <v-card dark color="#2d2d2d">
         <v-card-text class="pa-0">
+          <v-progress-linear
+            v-if="loading && !showLoadingOverlay"
+            indeterminate
+            color="green"
+            height="2"
+          />
+
+          <div class="pa-4 pb-0 d-flex flex-wrap ga-3">
+            <v-select
+              v-if="isAdmin"
+              v-model="selectedEstacionId"
+              :items="estacionOptions"
+              label="Estación"
+              prepend-inner-icon="mdi-gas-station"
+              class="flex-grow-1"
+            />
+            <v-text-field
+              v-model="search"
+              label="Buscar"
+              prepend-inner-icon="mdi-magnify"
+              class="flex-grow-1"
+            />
+          </div>
+
           <v-data-table
             :headers="headers"
-            :items="productos"
+            :items="filteredItems"
             :items-per-page="10"
+            :loading="loading"
             class="custom-table"
           >
             <template #item.activo="{ item }">
@@ -101,13 +130,15 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { productoService } from '@/services/apiService'
+import { ref, computed, onMounted, watch } from 'vue'
+import { productoService, stationService } from '@/services/apiService'
 
 const loading = ref(true)
+const showLoadingOverlay = ref(false)
 const saving = ref(false)
 const search = ref('')
 const productos = ref([])
+const productosCache = ref({})
 
 // Mensajes para alertas
 const message = ref({ text: '', type: 'success', icon: 'mdi-check-circle' })
@@ -120,6 +151,23 @@ const headers = [
 ]
 
 const usuarioId = sessionStorage.getItem('usuario_id')
+const rolId = sessionStorage.getItem('rol_id')
+const isAdmin = computed(() => String(rolId ?? '') === '1')
+
+const estaciones = ref([])
+const selectedEstacionId = ref(null)
+
+const estacionOptions = computed(() => {
+  return estaciones.value
+    .filter(e => e && e.nombre !== 'TODAS')
+    .map(e => ({ title: e.nombre, value: e.id }))
+})
+
+const selectedEstacionNombre = computed(() => {
+  if (!selectedEstacionId.value) return ''
+  const est = estaciones.value.find(e => String(e.id) === String(selectedEstacionId.value))
+  return est?.nombre || ''
+})
 
 const filteredItems = computed(() => {
   const term = search.value?.toLowerCase() || ''
@@ -158,12 +206,22 @@ const rules = {
   nonNegative: (v) => Number(v) >= 0 || 'Debe ser mayor o igual a 0',
 }
 
-const loadProductos = async () => {
+const loadProductos = async ({ forceRefresh = false, showOverlay = false } = {}) => {
+  const cacheKey = isAdmin.value && selectedEstacionId.value ? `estacion:${selectedEstacionId.value}` : `usuario:${usuarioId || 'na'}`
+  if (!forceRefresh && productosCache.value[cacheKey]) {
+    productos.value = productosCache.value[cacheKey]
+    return
+  }
+
+  showLoadingOverlay.value = !!showOverlay
   loading.value = true
   try {
-    const res = await productoService.getProductosByUsuarioEstacion(usuarioId)
+    const res = isAdmin.value && selectedEstacionId.value
+      ? await productoService.getProductosByEstacion(selectedEstacionId.value)
+      : await productoService.getProductosByUsuarioEstacion(usuarioId)
     if (res.success) {
       productos.value = res.data
+      productosCache.value = { ...productosCache.value, [cacheKey]: res.data }
     } else {
       productos.value = []
       message.value = { text: res.message || 'No se pudieron obtener productos', type: 'error', icon: 'mdi-alert-circle' }
@@ -173,6 +231,7 @@ const loadProductos = async () => {
     message.value = { text: 'Error de conexión al cargar productos', type: 'error', icon: 'mdi-alert-circle' }
   } finally {
     loading.value = false
+    showLoadingOverlay.value = false
   }
 }
 
@@ -184,11 +243,12 @@ const savePrecio = async () => {
     const res = await productoService.updatePrecioProducto(
       selectedProducto.value.id,
       Number(newPrecio.value),
-      usuarioId
+      usuarioId,
+      isAdmin.value ? selectedEstacionId.value : null
     )
     if (res.success) {
       message.value = { text: res.message || 'Precio actualizado correctamente', type: 'success', icon: 'mdi-check-circle' }
-      await loadProductos()
+      await loadProductos({ forceRefresh: true, showOverlay: false })
       closeDialog()
     } else {
       message.value = { text: res.message || 'No se pudo actualizar el precio', type: 'error', icon: 'mdi-alert-circle' }
@@ -201,8 +261,25 @@ const savePrecio = async () => {
   }
 }
 
-onMounted(() => {
-  loadProductos()
+const loadEstaciones = async () => {
+  try {
+    const res = await stationService.getEstaciones()
+    if (res.success) estaciones.value = Array.isArray(res.data) ? res.data : []
+  } catch {}
+}
+
+onMounted(async () => {
+  if (isAdmin.value) {
+    await loadEstaciones()
+    const stored = sessionStorage.getItem('estacion_id')
+    selectedEstacionId.value = stored ? Number(stored) : (estacionOptions.value[0]?.value ?? null)
+  }
+  await loadProductos({ forceRefresh: true, showOverlay: true })
+})
+
+watch(selectedEstacionId, async () => {
+  if (!isAdmin.value) return
+  await loadProductos({ forceRefresh: false, showOverlay: false })
 })
 </script>
 

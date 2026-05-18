@@ -104,6 +104,15 @@
                   density="comfortable"
                   readonly
                 />
+                <v-chip
+                  v-if="limiteMaxLitrosSelected != null"
+                  class="mb-3"
+                  color="info"
+                  size="small"
+                  variant="tonal"
+                >
+                  Límite máx: {{ formatNumber(limiteMaxLitrosSelected) }} L
+                </v-chip>
                 <v-text-field
                   v-model="pumpStates[selectedPumpStateKey].final"
                   type="text"
@@ -158,10 +167,10 @@
 
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue'
-import { bombaService } from '@/services/apiService'
+import { bombaService, stationService } from '@/services/apiService'
 
 const todayStr = new Date().toISOString().split('T')[0]
-const turnos = [1, 2, 3]
+const turnos = ref([1, 2, 3])
 
 const fechaSeleccionada = ref(todayStr)
 const menuFecha = ref(false)
@@ -175,7 +184,26 @@ const usuarioId = sessionStorage.getItem('usuario_id')
 const estacionId = sessionStorage.getItem('estacion_id')
 
 const pumps = ref([])
+const estaciones = ref([])
 const limitesMaxLitrosPorProductoId = ref({})
+const limitesMaxLitrosPorTipo = ref({})
+const productoTipoByProductoId = ref({})
+const productoIdByTipo = ref({})
+
+async function loadTurnosFromEstacion() {
+  const estId = Number(estacionId ?? NaN)
+  if (!Number.isFinite(estId)) return
+  try {
+    const res = await stationService.getEstaciones()
+    if (res.success) estaciones.value = Array.isArray(res.data) ? res.data : []
+  } catch {}
+
+  const est = estaciones.value.find(e => Number(e?.id) === estId)
+  const maxTurno = Number(est?.max_turno ?? est?.turnos_disponibles ?? NaN)
+  const resolvedMax = Number.isFinite(maxTurno) && maxTurno >= 1 ? maxTurno : 3
+  turnos.value = Array.from({ length: resolvedMax }, (_, i) => i + 1)
+  if (!turnos.value.includes(turnoSeleccionado.value)) turnoSeleccionado.value = turnos.value[0]
+}
 
 function normalizeProducto(prod) {
   const id = typeof prod === 'object' && prod !== null ? Number(prod.id ?? NaN) : typeof prod === 'number' ? prod : NaN
@@ -189,6 +217,22 @@ function normalizeProducto(prod) {
   if (name.includes('premium')) return 'Premium'
   if (name.includes('diesel')) return 'Diesel'
   return 'Magna'
+}
+
+function detectTipoFromText(text) {
+  const s = String(text ?? '').toLowerCase()
+  if (!s) return ''
+  if (s.includes('magna')) return 'Magna'
+  if (s.includes('premium')) return 'Premium'
+  if (s.includes('diesel')) return 'Diesel'
+  return ''
+}
+
+function extractProductoIdFromPump(p) {
+  const idDirect = Number(p?.producto?.id ?? p?.producto?.producto_id ?? p?.producto_id ?? NaN)
+  if (Number.isFinite(idDirect)) return idDirect
+  const idFromProductoField = Number((typeof p?.producto === 'string' || typeof p?.producto === 'number') ? p.producto : NaN)
+  return Number.isFinite(idFromProductoField) ? idFromProductoField : NaN
 }
 
 function reglaFinal(key){
@@ -205,13 +249,11 @@ function reglaFinal(key){
 
 
 function productoIdFromPump(p) {
-  const id = Number(p?.producto?.id ?? p?.producto_id ?? NaN)
-  if (Number.isFinite(id)) return id
-  const name = normalizeProducto(p?.producto)
-  if (name === 'Magna') return 1
-  if (name === 'Premium') return 2
-  if (name === 'Diesel') return 3
-  return NaN
+  const extracted = extractProductoIdFromPump(p)
+  if (Number.isFinite(extracted)) return extracted
+  const tipo = detectTipoFromText(p?.producto?.nombre ?? p?.producto) || normalizeProducto(p?.producto)
+  const mapped = Number(productoIdByTipo.value?.[tipo] ?? NaN)
+  return Number.isFinite(mapped) ? mapped : NaN
 }
 
 function productoIdFromPumpStateKey(key) {
@@ -220,11 +262,45 @@ function productoIdFromPumpStateKey(key) {
   return Number.isFinite(id) ? id : NaN
 }
 
+function rebuildProductoTipoByProductoId() {
+  const tipoById = {}
+  const idByTipo = {}
+  for (const p of pumps.value) {
+    const pid = extractProductoIdFromPump(p)
+    if (!Number.isFinite(pid)) continue
+    const tipo = detectTipoFromText(p?.producto?.nombre ?? p?.producto) || ''
+    if (!tipo) continue
+    tipoById[pid] = tipo
+    if (!Number.isFinite(Number(idByTipo[tipo] ?? NaN))) idByTipo[tipo] = pid
+  }
+  productoTipoByProductoId.value = tipoById
+  productoIdByTipo.value = idByTipo
+}
+
+function computeLimitesTipoFromIds() {
+  const out = {}
+  const byId = limitesMaxLitrosPorProductoId.value || {}
+  const tipoById = productoTipoByProductoId.value || {}
+  for (const [pidStr, limVal] of Object.entries(byId)) {
+    const pid = Number(pidStr)
+    const lim = Number(limVal)
+    if (!Number.isFinite(pid) || !Number.isFinite(lim)) continue
+    const tipo = tipoById[pid]
+    if (!tipo) continue
+    out[tipo] = Number.isFinite(out[tipo]) ? Math.max(out[tipo], lim) : lim
+  }
+  return out
+}
+
 function limiteMaxLitrosForKey(key) {
   const productoId = productoIdFromPumpStateKey(key)
   if (!Number.isFinite(productoId)) return NaN
-  const val = Number(limitesMaxLitrosPorProductoId.value?.[productoId] ?? NaN)
-  return Number.isFinite(val) ? val : NaN
+  const direct = Number(limitesMaxLitrosPorProductoId.value?.[productoId] ?? NaN)
+  if (Number.isFinite(direct)) return direct
+  const tipo = productoTipoByProductoId.value?.[productoId]
+  if (!tipo) return NaN
+  const byTipo = Number(limitesMaxLitrosPorTipo.value?.[tipo] ?? NaN)
+  return Number.isFinite(byTipo) ? byTipo : NaN
 }
 
 function getFinalWarning(pumpStateKey) {
@@ -248,20 +324,70 @@ async function loadLimitesMaxLitros() {
     const res = await bombaService.getConfiguracionesLitrosUsuario(usuarioId)
     if (!res.success) return
     const configuraciones = Array.isArray(res.data?.configuraciones) ? res.data.configuraciones : []
+    const productos = Array.isArray(res.data?.productos) ? res.data.productos : []
+    const productoNombreById = {}
+    for (const p of productos) {
+      const pid = Number(p?.id ?? NaN)
+      if (!Number.isFinite(pid)) continue
+      productoNombreById[pid] = String(p?.nombre ?? '')
+    }
+
+    if (productos.length) {
+      const tipoById = { ...(productoTipoByProductoId.value || {}) }
+      const idByTipo = { ...(productoIdByTipo.value || {}) }
+      for (const p of productos) {
+        const pid = Number(p?.id ?? NaN)
+        if (!Number.isFinite(pid)) continue
+        const tipo = detectTipoFromText(p?.nombre) || ''
+        if (!tipo) continue
+        tipoById[pid] = tipo
+        if (!Number.isFinite(Number(idByTipo[tipo] ?? NaN))) idByTipo[tipo] = pid
+      }
+      productoTipoByProductoId.value = tipoById
+      productoIdByTipo.value = idByTipo
+    }
+
     const map = {}
+    const byTipoFromConfig = {}
     for (const c of configuraciones) {
       const productoId = Number(c?.producto_id ?? c?.producto ?? NaN)
       const limite = Number(c?.limite_max_litros ?? NaN)
       if (Number.isFinite(productoId) && Number.isFinite(limite)) map[productoId] = limite
+
+      const tipoRaw =
+        c?.producto_tipo ??
+        c?.producto_nombre ??
+        c?.producto_titulo ??
+        c?.producto_texto ??
+        (Number.isFinite(productoId) ? productoNombreById[productoId] : null) ??
+        null
+      if (Number.isFinite(limite) && tipoRaw != null) {
+        const tipo = detectTipoFromText(String(tipoRaw)) || ''
+        if (tipo) {
+          byTipoFromConfig[tipo] = Number.isFinite(byTipoFromConfig[tipo]) ? Math.max(byTipoFromConfig[tipo], limite) : limite
+        }
+      }
     }
     limitesMaxLitrosPorProductoId.value = map
+
+    const byTipoFromPumps = computeLimitesTipoFromIds()
+    const merged = { ...byTipoFromPumps }
+    for (const [tipo, lim] of Object.entries(byTipoFromConfig)) {
+      const current = Number(merged[tipo] ?? NaN)
+      merged[tipo] = Number.isFinite(current) ? Math.max(current, Number(lim)) : Number(lim)
+    }
+    limitesMaxLitrosPorTipo.value = merged
   } catch {}
 }
 
 const pumpsByProduct = computed(() => {
   const group = { Magna: [], Premium: [], Diesel: [] }
   for (const p of pumps.value) {
-    const prod = normalizeProducto(p.producto)
+    const pid = extractProductoIdFromPump(p)
+    const prod =
+      (Number.isFinite(pid) ? productoTipoByProductoId.value?.[pid] : '') ||
+      detectTipoFromText(p?.producto?.nombre ?? p?.producto) ||
+      normalizeProducto(p.producto)
     if (group[prod]) group[prod].push(p)
   }
   for (const k of Object.keys(group)) {
@@ -294,7 +420,7 @@ async function loadPrevLecturas() {
 }
 
 function pumpKey(p) {
-  const productoId = Number(p?.producto?.id ?? p?.producto_id ?? NaN)
+  const productoId = productoIdFromPump(p)
   const estacionId = Number(p?.estacion_id ?? NaN)
   return `${estacionId}:${productoId}:${p.numero_bomba}`
 }
@@ -329,6 +455,11 @@ const selectedPump = computed(() => {
 
 const selectedPumpStateKey = computed(() => {
   return selectedPump.value ? selectedPumpKey.value : ''
+})
+
+const limiteMaxLitrosSelected = computed(() => {
+  const lim = limiteMaxLitrosForKey(selectedPumpStateKey.value)
+  return Number.isFinite(lim) && lim > 0 ? lim : null
 })
 
 function pumpIsComplete(p) {
@@ -373,17 +504,18 @@ function toYMD(val) {
 }
 
 function keyLSPump(pump, fecha, turno) {
-  const productoId = Number(pump?.producto?.id ?? pump?.producto_id ?? NaN)
+  const productoId = productoIdFromPump(pump)
   const estacionId = Number(pump?.estacion_id ?? NaN)
   return `manual:pump:${estacionId}:${productoId}:${pump.numero_bomba}:${fecha}:${turno}`
 }
 
 function prevTurnoFecha(fecha, turno) {
+  const maxTurno = Math.max(...(turnos.value.length ? turnos.value : [3]))
   if (turno > 1) return { turno: turno - 1, fecha }
   const d = new Date(fecha)
   d.setDate(d.getDate() - 1)
   const prevDate = d.toISOString().split('T')[0]
-  return { turno: 3, fecha: prevDate }
+  return { turno: maxTurno, fecha: prevDate }
 }
 
 function cargarPrevLecturaPump(pump, fecha, turno) {
@@ -501,6 +633,11 @@ async function loadBombas() {
     const res = await bombaService.getBombasByUsuarioEstacion(usuarioId)
     if (res.success) {
       pumps.value = Array.isArray(res.data) ? res.data : []
+      rebuildProductoTipoByProductoId()
+      limitesMaxLitrosPorTipo.value = {
+        ...computeLimitesTipoFromIds(),
+        ...(limitesMaxLitrosPorTipo.value || {})
+      }
       pumps.value.forEach(p => ensurePumpState(pumpKey(p)))
       recalcularInicioAll()
       selectedPumpKey.value = ''
@@ -521,9 +658,9 @@ watch([fechaSeleccionada, turnoSeleccionado], async () => {
     ensurePumpState(key)
     pumpStates[key].final = 0
   })
-  await loadPrevLecturas()
   recalcularInicioAll()
 })
+
 
 watch(selectedProduct, () => {
   currentPumps.value.forEach(p => ensurePumpState(pumpKey(p)))
@@ -532,8 +669,9 @@ watch(selectedProduct, () => {
 })
 
 onMounted(async () => {
-  await loadLimitesMaxLitros()
+  await loadTurnosFromEstacion()
   await loadBombas()
+  await loadLimitesMaxLitros()
   await loadPrevLecturas()
   recalcularInicioAll()
 })

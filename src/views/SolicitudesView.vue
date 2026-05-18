@@ -1,4 +1,13 @@
 <template>
+  <LoadingWave 
+      v-if="isInitialLoading"
+      :show="isInitialLoading"
+      title="Cargando Solicitudes"
+      :message="loadingMessage"
+      :progress="loadingProgress"
+      icon="mdi-view-dashboard"
+    />
+
   <v-container fluid class="pa-6">
     <v-row>
       <v-col cols="12">
@@ -230,6 +239,9 @@ const dialog = ref(false)
 const rolId = sessionStorage.getItem('rol_id')
 const isAdmin = computed(() => rolId === '1') // 1 = ADMIN (Sistemas)
 const isEncargado = computed(() => rolId === '3') // 3 = Encargado
+const isInitialLoading = ref(true)
+const loadingMessage = ref('Cargando Solicitudes EVA')
+const loadingProgress = ref(0)
 
 // Calcular si la solicitud se puede cancelar (solo Encargado, estado pendiente, < 24 horas)
 const canCancel = computed(() => {
@@ -248,6 +260,8 @@ const actionComment = ref('')
 const updatingStatus = ref(false)
 const materialesDisponibles = ref([])
 const loadingMateriales = ref(false)
+
+
 
 const headers = [
   { title: 'ID', key: 'id', align: 'start' },
@@ -273,10 +287,26 @@ const defaultItem = {
 const editedItem = reactive({ ...defaultItem })
 
 onMounted(async () => {
-  await Promise.all([
+  isInitialLoading.value = true
+  loadingProgress.value = 5
+  loadingMessage.value = 'Validando solicitudes...'
+  try {
+    await Promise.all([
     loadMateriales(),
     loadSolicitudes()
   ])
+  loadingProgress.value = 100
+  loadingMessage.value = 'Solicitudes cargadas con éxito'
+  setTimeout(() => {
+    isInitialLoading.value = false
+  }, 250)
+  } catch (error) {
+    console.error('Error cargando solicitudes:', error)
+    loadingMessage.value = 'Error cargando solicitudes'
+    setTimeout(() => {
+      isInitialLoading.value = false
+    }, 2500)
+  }
 })
 
 async function loadMateriales() {

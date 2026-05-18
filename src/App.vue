@@ -15,7 +15,7 @@
       ></v-app-bar-nav-icon>
       
       <v-app-bar-title class="text-green font-weight-bold">
-        EVA - Gasolineras
+        EVA
       </v-app-bar-title>
       
       <v-spacer></v-spacer>
@@ -278,5 +278,25 @@ window.addEventListener('storage', (e) => {
 
 .logout-dialog .v-avatar {
   box-shadow: 0 4px 12px rgba(255, 152, 0, 0.3);
+}
+</style>
+
+<style>
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: rgb(var(--v-theme-background));
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.v-application {
+  background: rgb(var(--v-theme-background)) !important;
 }
 </style>

@@ -942,9 +942,31 @@ export const productoService = {
     }
   },
 
-  async updatePrecioProducto(productoId, precio, usuarioId) {
+  async getProductosByEstacion(estacionId) {
     try {
-      const response = await apiClient.put(`/api/updatePrecioProducto/${productoId}`, { precio, usuario_id: usuarioId })
+      const id = Number(estacionId)
+      if (!Number.isFinite(id)) return { success: false, data: [], message: 'Estación inválida' }
+
+      let response
+      try {
+        response = await apiClient.get(`/api/getProductosByEstacion/${id}`)
+      } catch (err) {
+        response = await apiClient.get(`/api/productos/estacion/${id}`)
+      }
+
+      const data = Array.isArray(response.data) ? response.data : response.data.productos || []
+      return { success: true, data, message: 'Productos de la estación obtenidos' }
+    } catch (error) {
+      console.error('Error en getProductosByEstacion:', error)
+      return { success: false, data: [], message: error.response?.data?.message || error.message || 'Error de conexión' }
+    }
+  },
+
+  async updatePrecioProducto(productoId, precio, usuarioId, estacionId = null) {
+    try {
+      const payload = { precio, usuario_id: usuarioId }
+      if (estacionId != null && estacionId !== '') payload.estacion_id = estacionId
+      const response = await apiClient.put(`/api/updatePrecioProducto/${productoId}`, payload)
       return { success: true, data: response.data, message: response.data?.message || 'Precio actualizado' }
     } catch (error) {
       console.error('Error en updatePrecioProducto:', error)

@@ -1,4 +1,13 @@
 <template>
+  <LoadingWave 
+      v-if="isInitialLoading"
+      :show="isInitialLoading"
+      title="Cargando Evaluaciones"
+      :message="loadingMessage"
+      :progress="loadingProgress"
+      icon="mdi-view-dashboard"
+    />
+
   <v-container class="pa-6">
     <!-- Header -->
     <div class="d-flex align-center justify-space-between mb-6">
@@ -127,6 +136,9 @@ import { evaluacionService, puestoService, reporteService, dashboardService } fr
 const isLoading = ref(false)
 const mensaje = ref('')
 const mensajeTipo = ref('info')
+const isInitialLoading = ref(true)
+const loadingMessage = ref('Cargando Evaluaciones')
+const loadingProgress = ref(0)
 
 const puestos = ref([]) // { nombre: string, cantidad: number, evaluado?: boolean }[]
 const puestoSeleccionado = ref(null)
@@ -361,8 +373,20 @@ const seleccionarPuesto = async (puesto) => {
 }
 
 onMounted(async () => {
-  await loadPeriodoEvaluacion()
-  cargarPuestos()
+  isInitialLoading.value = true
+  loadingProgress.value = 5
+  loadingMessage.value = 'Validando periodo de evaluación...'
+  try {
+    await loadPeriodoEvaluacion()
+    loadingProgress.value = 35
+    loadingMessage.value = 'Cargando puestos y empleados...'
+    await cargarPuestos()
+    loadingProgress.value = 100
+  } finally {
+    setTimeout(() => {
+      isInitialLoading.value = false
+    }, 250)
+  }
 })
 
 const iniciarEvaluacion = (empleado) => {

@@ -1,4 +1,13 @@
 <template>
+  <LoadingWave 
+      v-if="isInitialLoading"
+      :show="isInitialLoading"
+      title="Cargando Inventario"
+      :message="loadingMessage"
+      :progress="loadingProgress"
+      icon="mdi-view-dashboard"
+    />
+
   <v-container fluid class="pa-6">
     <v-row>
       <v-col cols="12">
@@ -127,6 +136,9 @@ const selectedItem = ref(null)
 const newStock = ref(0)
 const newMinStock = ref(0)
 const saving = ref(false)
+const isInitialLoading = ref(true)
+const loadingMessage = ref('Cargando Inventario EVA')
+const loadingProgress = ref(0)
 
 const headers = [
   { title: 'Material', key: 'nombre' },
@@ -137,6 +149,16 @@ const headers = [
 ]
 
 onMounted(async () => {
+  isInitialLoading.value = true
+  loadingProgress.value = 5
+  loadingMessage.value = 'Validando inventario...'
+  setTimeout(() => {
+    loadingProgress.value = 100
+    loadingMessage.value = 'Inventario cargado con éxito'
+    setTimeout(() => {
+      isInitialLoading.value = false
+    }, 250)
+  }, 2500)
   if (isAdmin.value) {
     await loadStations()
   } else {

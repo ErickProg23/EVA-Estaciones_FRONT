@@ -1,4 +1,13 @@
 <template>
+  <LoadingWave 
+      v-if="isInitialLoading"
+      :show="isInitialLoading"
+      title="Cargando Materiales"
+      :message="loadingMessage"
+      :progress="loadingProgress"
+      icon="mdi-view-dashboard"
+    />
+
   <v-container fluid class="pa-6">
     <v-row>
       <v-col cols="12">
@@ -175,6 +184,9 @@ const loading = ref(false)
 const dialog = ref(false)
 const assignDialog = ref(false)
 const loadingAssignments = ref(false)
+const isInitialLoading = ref(true)
+const loadingMessage = ref('Cargando Materiales')
+const loadingProgress = ref(0)
 
 const headers = [
   { title: 'Nombre', key: 'nombre' },
@@ -198,6 +210,16 @@ const minStockValues = ref({})
 const selectAll = ref(false)
 
 onMounted(async () => {
+  isInitialLoading.value = true
+  loadingProgress.value = 5
+  loadingMessage.value = 'Validando materiales EVA...'
+  setTimeout(() => {
+    loadingProgress.value = 100
+    loadingMessage.value = 'Materiales cargados con éxito'
+    setTimeout(() => {
+      isInitialLoading.value = false
+    }, 250)
+  }, 2000)
   await Promise.all([
     loadEstaciones(),
     loadMateriales()

@@ -1,10 +1,19 @@
 <template>
+  <LoadingWave 
+      v-if="isInitialLoading"
+      :show="isInitialLoading"
+      title="Cargando Lecturas"
+      :message="loadingMessage"
+      :progress="loadingProgress"
+      icon="mdi-view-dashboard"
+    />
+
   <v-container fluid class="py-4">
     <v-card color="#2d2d2d" dark>
-      <v-card-title class="text-h6">Lecturas comparativas</v-card-title>
+      <v-card-title class="text-h6">Lecturas</v-card-title>
       <v-card-text>
         <v-row class="mb-2">
-          <v-col cols="12" md="6">
+          <v-col cols="12" md="4">
             <v-menu
               v-model="menuFecha"
               :close-on-content-click="false"
@@ -32,7 +41,7 @@
               />
             </v-menu>
           </v-col>
-          <v-col cols="12" md="6">
+          <v-col cols="12" md="4">
             <v-select
               v-model="turnoSeleccionado"
               :items="turnos"
@@ -40,6 +49,17 @@
               variant="outlined"
               density="comfortable"
               hide-details="auto"
+            />
+          </v-col>
+          <v-col cols="12" md="4" v-if="isAdmin">
+            <v-select
+              v-model="selectedEstacionId"
+              :items="estacionOptions"
+              label="Estación"
+              variant="outlined"
+              density="comfortable"
+              hide-details="auto"
+              prepend-inner-icon="mdi-gas-station"
             />
           </v-col>
         </v-row>
@@ -270,12 +290,12 @@
 
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue'
-import { bombaService, productoService } from '@/services/apiService'
+import { bombaService, productoService, stationService } from '@/services/apiService'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
 const todayStr = new Date().toISOString().split('T')[0]
-const turnos = [1, 2, 3]
+const turnos = ref([1, 2, 3])
 
 const fechaSeleccionada = ref(todayStr)
 const menuFecha = ref(false)
@@ -284,7 +304,21 @@ const turnoSeleccionado = ref(1)
 const selectedProduct = ref('Magna')
 
 const usuarioId = sessionStorage.getItem('usuario_id')
-const estacionId = sessionStorage.getItem('estacion_id')
+const estacionIdSesion = sessionStorage.getItem('estacion_id')
+const rolId = sessionStorage.getItem('rol_id')
+const isAdmin = computed(() => String(rolId ?? '') === '1')
+
+const estaciones = ref([])
+const selectedEstacionId = ref(estacionIdSesion ? Number(estacionIdSesion) : null)
+const estacionOptions = computed(() => {
+  return (estaciones.value || [])
+    .filter(e => e && e.nombre !== 'TODAS')
+    .map(e => ({ title: e.nombre, value: e.id }))
+})
+
+const activeEstacionId = computed(() => {
+  return isAdmin.value ? selectedEstacionId.value : (estacionIdSesion ? Number(estacionIdSesion) : null)
+})
 
 const mensaje = ref({ text: '', type: 'info', icon: 'mdi-information' })
 const savingTotals = ref(false)
@@ -296,6 +330,9 @@ const historyLoading = ref(false)
 const historyRows = ref([])
 const historyFrom = ref(shiftYMD(todayStr, -7))
 const historyTo = ref(todayStr)
+const isInitialLoading = ref(true)
+const loadingMessage = ref('Cargando Lecturas')
+const loadingProgress = ref(0)
 
 const historyHeaders = [
   { title: 'Fecha', key: 'fecha', sortable: true },
@@ -424,6 +461,24 @@ function shiftYMD(ymd, days) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+async function loadTurnosFromEstacion(estId) {
+  const id = Number(estId ?? NaN)
+  if (!Number.isFinite(id)) return
+
+  if (!estaciones.value.length) {
+    try {
+      const res = await stationService.getEstaciones()
+      if (res.success) estaciones.value = Array.isArray(res.data) ? res.data : []
+    } catch {}
+  }
+
+  const est = estaciones.value.find(e => Number(e?.id) === id)
+  const maxTurno = Number(est?.max_turno ?? est?.turnos_disponibles ?? NaN)
+  const resolvedMax = Number.isFinite(maxTurno) && maxTurno >= 1 ? maxTurno : 3
+  turnos.value = Array.from({ length: resolvedMax }, (_, i) => i + 1)
+  if (!turnos.value.includes(turnoSeleccionado.value)) turnoSeleccionado.value = turnos.value[0]
+}
+
 function listYMD(from, to) {
   const a = new Date(`${String(from)}T00:00:00`)
   const b = new Date(`${String(to)}T00:00:00`)
@@ -487,7 +542,8 @@ const totalDifLecturasAll = computed(() => {
 })
 
 const currentTotalsSignature = computed(() => {
-  if (!estacionId) return ''
+  const estId = activeEstacionId.value
+  if (!estId) return ''
 
   const detalles = {}
   const getDifLect = (pid) => {
@@ -515,7 +571,7 @@ const currentTotalsSignature = computed(() => {
   }
 
   return JSON.stringify({
-    estacion_id: String(estacionId),
+    estacion_id: String(estId),
     fecha: fechaSeleccionada.value,
     turno: Number(turnoSeleccionado.value),
     detalles
@@ -532,6 +588,17 @@ const canSaveTotals = computed(() => {
 
 async function loadBombas() {
   try {
+    const estId = activeEstacionId.value
+    if (isAdmin.value) {
+      if (!estId) {
+        bombas.value = []
+        return
+      }
+      const res = await bombaService.getBombas()
+      const list = res.success ? (Array.isArray(res.data) ? res.data : []) : []
+      bombas.value = list.filter(b => String(b?.estacion_id) === String(estId))
+      return
+    }
     const res = await bombaService.getBombasByUsuarioEstacion(usuarioId)
     bombas.value = res.success ? (Array.isArray(res.data) ? res.data : []) : []
   } catch (e) {
@@ -541,7 +608,10 @@ async function loadBombas() {
 
 async function loadPrecios() {
   try {
-    const res = await productoService.getProductosByUsuarioEstacion(usuarioId)
+    const estId = activeEstacionId.value
+    const res = isAdmin.value && estId
+      ? await productoService.getProductosByEstacion(estId)
+      : await productoService.getProductosByUsuarioEstacion(usuarioId)
     const list = res.success ? (Array.isArray(res.data) ? res.data : []) : []
     for (const prod of list) {
       const pid = Number(prod.id ?? NaN)
@@ -552,17 +622,19 @@ async function loadPrecios() {
 }
 
 function prevTurnoFecha(fecha, turno) {
+  const maxTurno = Math.max(...(turnos.value.length ? turnos.value : [3]))
   if (turno > 1) return { turno: turno - 1, fecha }
   const d = new Date(fecha)
   d.setDate(d.getDate() - 1)
   const prevDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
-  return { turno: 3, fecha: prevDate }
+  return { turno: maxTurno, fecha: prevDate }
 }
 
 async function loadDifLecturas() {
-  if (!estacionId) return
+  const estId = activeEstacionId.value
+  if (!estId) return
   try {
-    const res = await bombaService.getLecturasManualDiferencias(estacionId, fechaSeleccionada.value, turnoSeleccionado.value)
+    const res = await bombaService.getLecturasManualDiferencias(estId, fechaSeleccionada.value, turnoSeleccionado.value)
     const list = res.success ? (Array.isArray(res.data) ? res.data : []) : []
     Object.keys(difLecturasApi).forEach(k => delete difLecturasApi[k])
     Object.keys(volInicialByPump).forEach(k => delete volInicialByPump[k])
@@ -577,10 +649,11 @@ async function loadDifLecturas() {
 }
 
 async function loadVolInicial() {
-  if (!estacionId) return
+  const estId = activeEstacionId.value
+  if (!estId) return
   const { turno: prevTurno, fecha: prevFechaStr } = prevTurnoFecha(fechaSeleccionada.value, turnoSeleccionado.value)
   try {
-    const res = await bombaService.getLecturasManualUltimas(estacionId, prevFechaStr, prevTurno)
+    const res = await bombaService.getLecturasManualUltimas(estId, prevFechaStr, prevTurno)
     const list = res.success ? (Array.isArray(res.data) ? res.data : []) : []
     Object.keys(volInicialByPump).forEach(k => delete volInicialByPump[k])
     for (const it of list) {
@@ -592,9 +665,10 @@ async function loadVolInicial() {
 }
 
 async function loadVolFinal() {
-  if (!estacionId) return
+  const estId = activeEstacionId.value
+  if (!estId) return
   try {
-    const res = await bombaService.getLecturasManualUltimas(estacionId, fechaSeleccionada.value, turnoSeleccionado.value)
+    const res = await bombaService.getLecturasManualUltimas(estId, fechaSeleccionada.value, turnoSeleccionado.value)
     const list = res.success ? (Array.isArray(res.data) ? res.data : []) : []
     Object.keys(volFinalByPump).forEach(k => delete volFinalByPump[k])
     for (const it of list) {
@@ -608,9 +682,10 @@ async function loadVolFinal() {
 }
 
 async function loadNexusTotales() {
-  if (!estacionId) return
+  const estId = activeEstacionId.value
+  if (!estId) return
   try {
-    const res = await bombaService.getComparativaTotales(estacionId, fechaSeleccionada.value, turnoSeleccionado.value)
+    const res = await bombaService.getComparativaTotales(estId, fechaSeleccionada.value, turnoSeleccionado.value)
 
     const detallesObj = res?.detalles && typeof res.detalles === 'object' ? res.detalles : {}
     const nexusObj = res?.nexus_totales && typeof res.nexus_totales === 'object' ? res.nexus_totales : {}
@@ -767,7 +842,8 @@ function downloadPDF() {
 }
 
 async function saveTotals() {
-  if (!estacionId) return
+  const estId = activeEstacionId.value
+  if (!estId) return
 
   const sig = currentTotalsSignature.value
   if (!sig) {
@@ -810,7 +886,7 @@ async function saveTotals() {
     }
 
     const data = {
-      estacion_id: estacionId,
+      estacion_id: estId,
       fecha: fechaSeleccionada.value,
       turno: turnoSeleccionado.value,
       detalles
@@ -839,7 +915,8 @@ function openHistory() {
 }
 
 async function fetchHistory() {
-  if (!estacionId) return
+  const estId = activeEstacionId.value
+  if (!estId) return
 
   const from = historyFrom.value
   const to = historyTo.value
@@ -862,7 +939,7 @@ async function fetchHistory() {
 
     for (const day of days) {
       for (const t of [1, 2, 3]) {
-        const res = await bombaService.getComparativaTotales(estacionId, day, t)
+        const res = await bombaService.getComparativaTotales(estId, day, t)
         if (!res?.success) continue
 
         const detallesObj = res?.detalles && typeof res.detalles === 'object' ? res.detalles : {}
@@ -942,6 +1019,35 @@ watch(selectedProduct, () => {
 })
 
 onMounted(async () => {
+  isInitialLoading.value = true
+  loadingProgress.value = 5
+  loadingMessage.value = 'Validando lecturas...'
+  setTimeout(() => {
+    loadingProgress.value = 100
+    loadingMessage.value = 'Lecturas cargadas con éxito'
+    setTimeout(() => {
+      isInitialLoading.value = false
+    }, 250)
+  }, 2000)
+  if (isAdmin.value) {
+    try {
+      const res = await stationService.getEstaciones()
+      if (res.success) estaciones.value = Array.isArray(res.data) ? res.data : []
+      if (!selectedEstacionId.value) selectedEstacionId.value = estacionOptions.value[0]?.value ?? null
+    } catch {}
+  }
+  await loadTurnosFromEstacion(activeEstacionId.value)
+  await loadBombas()
+  await loadPrecios()
+  await loadVolInicial()
+  await loadVolFinal()
+  await loadDifLecturas()
+  await loadNexusTotales()
+})
+
+watch(selectedEstacionId, async () => {
+  if (!isAdmin.value) return
+  await loadTurnosFromEstacion(activeEstacionId.value)
   await loadBombas()
   await loadPrecios()
   await loadVolInicial()

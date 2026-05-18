@@ -11,9 +11,16 @@
                   class="mb-4 rounded"
                   :style="logoStyle"
               />
+              <div class="login-title">
+                <div class="login-title__main">EVA</div>
+                <div class="login-title__sub">Gestión de Estaciones</div>
+              </div>
+              <div class="text-body-2 login-subtitle">Inicia sesión para continuar</div>
             </div>
           </v-card-title>
           
+          <v-divider class="login-divider" />
+
           <v-card-text class="pa-6 pa-sm-8">
             <v-form @submit.prevent="handleLogin">
               <v-text-field
@@ -24,6 +31,9 @@
                 color="green"
                 class="mb-4 mb-sm-6"
                 :rules="[rules.required]"
+                density="comfortable"
+                hide-details="auto"
+                autocomplete="username"
                 required
               ></v-text-field>
               
@@ -37,6 +47,9 @@
                 color="green"
                 class="mb-4 mb-sm-6"
                 :rules="[rules.required]"
+                density="comfortable"
+                hide-details="auto"
+                autocomplete="current-password"
                 @click:append-inner="showPassword = !showPassword"
                 required
               ></v-text-field>
@@ -188,36 +201,99 @@ const handleLogin = async () => {
 <style scoped>
 .login-container {
   min-height: 100vh;
-  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(800px 500px at 20% 15%, rgba(76, 175, 80, 0.20), transparent 60%),
+    radial-gradient(700px 450px at 80% 85%, rgba(76, 175, 80, 0.12), transparent 62%),
+    linear-gradient(135deg, #141414 0%, #2d2d2d 100%);
   padding: 16px;
 }
 
+.login-container::before {
+  content: "";
+  position: absolute;
+  inset: -40px;
+  background:
+    radial-gradient(circle at 25% 20%, rgba(255, 255, 255, 0.06) 0 2px, transparent 3px),
+    radial-gradient(circle at 75% 80%, rgba(255, 255, 255, 0.05) 0 2px, transparent 3px);
+  background-size: 40px 40px;
+  opacity: 0.35;
+  pointer-events: none;
+  transform: rotate(-8deg);
+}
+
 .login-card {
-  background-color: #2d2d2d !important;
-  border: 2px solid #4caf50;
+  background:
+    linear-gradient(180deg, rgba(45, 45, 45, 0.92) 0%, rgba(35, 35, 35, 0.92) 100%) !important;
+  border: 1px solid rgba(76, 175, 80, 0.55);
   border-radius: 16px !important;
   width: 100%;
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.55) !important;
+  backdrop-filter: blur(10px);
+  transform: translateY(0);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.login-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 26px 78px rgba(0, 0, 0, 0.62) !important;
+  border-color: rgba(76, 175, 80, 0.75);
 }
 
 .login-card .v-card-title {
-  background: linear-gradient(45deg, #1a1a1a, #2d2d2d);
+  background:
+    linear-gradient(45deg, rgba(20, 20, 20, 0.75), rgba(45, 45, 45, 0.45));
   border-radius: 16px 16px 0 0;
 }
 
-.v-text-field .v-field {
-  background-color: #3d3d3d;
+.login-title {
+  margin-top: 2px;
+  text-align: center;
+  line-height: 1.05;
+}
+
+.login-title__main {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(236, 236, 236, 0.98);
+  text-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+}
+
+.login-title__sub {
+  margin-top: 2px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(76, 175, 80, 0.95);
+}
+
+.login-subtitle {
+  margin-top: 2px;
+  color: rgba(200, 200, 200, 0.92);
+}
+
+.login-divider {
+  border-color: rgba(76, 175, 80, 0.25);
+}
+
+.login-card :deep(.v-field) {
+  background-color: rgba(61, 61, 61, 0.85);
   border-radius: 12px;
 }
 
-.v-text-field .v-field--focused {
-  border-color: #4caf50;
+.login-card :deep(.v-field--focused) {
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.35);
 }
 
-.v-text-field .v-label {
-  color: #cccccc;
+.login-card :deep(.v-label) {
+  color: rgba(204, 204, 204, 0.92);
 }
 
-.v-text-field .v-field--focused .v-label {
+.login-card :deep(.v-field--focused .v-label) {
   color: #4caf50;
 }
 
@@ -225,10 +301,14 @@ const handleLogin = async () => {
   color: #4caf50 !important;
 }
 
-.v-btn {
+.login-card :deep(.v-btn) {
   border-radius: 12px;
   font-weight: 600;
   text-transform: none;
+}
+
+.login-card :deep(.v-btn:hover) {
+  filter: brightness(1.03);
 }
 
 /* Responsividad adicional */

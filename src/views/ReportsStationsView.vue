@@ -3,7 +3,7 @@
     <LoadingWave 
       v-if="isInitialLoading"
       :show="isInitialLoading"
-      title="Cargando Reportes EVA"
+      title="Cargando Reportes"
       :message="loadingMessage"
       :progress="loadingProgress"
       icon="mdi-chart-line"
