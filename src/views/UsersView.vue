@@ -135,11 +135,11 @@
                         @click="editUser(item)"
                       ></v-btn>
                       <v-btn
-                        icon="mdi-delete"
+                        :icon="item.activo ? 'mdi-account-off' : 'mdi-account-check'"
                         size="small"
-                        color="red"
+                        :color="item.activo ? 'red' : 'green'"
                         variant="text"
-                        @click="deleteUser(item)"
+                        @click="toggleUserStatus(item)"
                       ></v-btn>
                     </div>
                   </template>
@@ -209,14 +209,24 @@
                 ></v-text-field>
               </v-col>
               <v-col cols="12" md="6">
+                <v-switch
+                  v-if="editingUser"
+                  v-model="changePassword"
+                  color="green"
+                  label="Cambiar contraseña"
+                  hide-details
+                  class="mb-2"
+                />
                 <v-text-field
                   v-model="userForm.password"
                   label="Contraseña"
-                  type="password"
+                  :type="showPassword ? 'text' : 'password'"
+                  :append-inner-icon="showPassword ? 'mdi-eye' : 'mdi-eye-off'"
                   variant="outlined"
                   dark
-                  required
-                  :disabled="editingUser"
+                  :disabled="editingUser && !changePassword"
+                  :rules="passwordRules"
+                  @click:append-inner="showPassword = !showPassword"
                 ></v-text-field>
               </v-col>
               <v-col cols="12" md="6">
@@ -281,6 +291,45 @@
         </v-btn>
       </template>
     </v-snackbar>
+
+    <v-dialog v-model="confirmStatusDialog.open" max-width="520" persistent>
+      <v-card dark color="#2d2d2d">
+        <v-card-title class="d-flex align-center">
+          <v-icon class="mr-2" :color="confirmStatusDialog.nextActivo ? 'green' : 'red'">
+            {{ confirmStatusDialog.nextActivo ? 'mdi-account-check' : 'mdi-account-off' }}
+          </v-icon>
+          {{ confirmStatusDialog.nextActivo ? 'Activar usuario' : 'Desactivar usuario' }}
+        </v-card-title>
+
+        <v-card-text>
+          <div class="text-body-1">
+            {{ confirmStatusDialog.nextActivo ? 'Se activará el acceso del usuario:' : 'Se desactivará el acceso del usuario:' }}
+          </div>
+          <div class="mt-2 font-weight-bold">{{ confirmStatusDialog.user?.nombre }}</div>
+          <div class="text-caption text-grey mt-1">
+            Usuario: {{ confirmStatusDialog.user?.usuario }} · Rol: {{ confirmStatusDialog.user?.rol?.nombre || getRoleName(confirmStatusDialog.user?.rol_id) || 'Sin rol' }}
+          </div>
+          <div v-if="!confirmStatusDialog.nextActivo" class="text-body-2 text-grey mt-3">
+            El usuario no podrá iniciar sesión hasta que lo actives nuevamente.
+          </div>
+        </v-card-text>
+
+        <v-card-actions class="justify-end">
+          <v-btn color="grey" variant="outlined" class="text-none" @click="closeConfirmStatusDialog" :disabled="loading">
+            Cancelar
+          </v-btn>
+          <v-btn
+            :color="confirmStatusDialog.nextActivo ? 'green' : 'red'"
+            variant="elevated"
+            class="text-none"
+            :loading="loading"
+            @click="confirmToggleUserStatus"
+          >
+            {{ confirmStatusDialog.nextActivo ? 'Activar' : 'Desactivar' }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -301,6 +350,8 @@ const selectedStatus = ref(null)
 const editingUser = ref(null)
 const formValid = ref(false)
 const search = ref('')
+const changePassword = ref(false)
+const showPassword = ref(false)
 
 // Estados de carga inicial
 const isInitialLoading = ref(true)
@@ -318,6 +369,7 @@ const API_URL = process.env.VUE_APP_API_URL
 // Datos de usuarios desde API
 const users = ref([])
 const currentUser = ref(null)
+const confirmStatusDialog = ref({ open: false, user: null, nextActivo: false })
 
 const userForm = ref({
   nombre: '',
@@ -573,6 +625,8 @@ const clearForm = () => {
 
 const editUser = (user) => {
   editingUser.value = user
+  changePassword.value = false
+  showPassword.value = false
   userForm.value = {
     nombre: user.nombre,
     username: user.usuario, // Asegúrate de usar 'usuario' no 'username'
@@ -585,12 +639,42 @@ const editUser = (user) => {
   showAddDialog.value = true
 }
 
-//Solo desactivar al usuario
-const deleteUser = (user) => {
-  if (confirm(`¿Estás seguro de eliminar al usuario ${user.nombre}?`)) {
-    showMessage('Funcionalidad de eliminar pendiente de implementar', 'warning')
+const toggleUserStatus = async (user) => {
+  confirmStatusDialog.value = { open: true, user, nextActivo: !user.activo }
+}
+
+const closeConfirmStatusDialog = () => {
+  confirmStatusDialog.value.open = false
+}
+
+const confirmToggleUserStatus = async () => {
+  const user = confirmStatusDialog.value.user
+  const nextActivo = confirmStatusDialog.value.nextActivo
+  if (!user) return
+
+  try {
+    loading.value = true
+    const result = await userService.updateUsuario(user.id, { activo: nextActivo })
+    if (result.success) {
+      showMessage(result.message || `Usuario ${nextActivo ? 'activado' : 'desactivado'} correctamente`, 'success')
+      closeConfirmStatusDialog()
+      await getUsuarios()
+    } else {
+      showMessage(result.message || 'No se pudo actualizar el estado del usuario', 'error')
+    }
+  } catch (error) {
+    console.error('Error al actualizar estado del usuario:', error)
+    showMessage(error.response?.data?.message || 'Error al conectar con el servidor', 'error')
+  } finally {
+    loading.value = false
   }
 }
+
+const passwordRules = computed(() => {
+  if (!editingUser.value) return [(v) => !!v || 'Este campo es requerido']
+  if (changePassword.value) return [(v) => !!v || 'Este campo es requerido']
+  return []
+})
 
 const saveUser = async () => {
   saving.value = true
@@ -611,7 +695,7 @@ const saveUser = async () => {
       estacion_id: userForm.value.estacion_id
     }
 
-    if (editingUser.value && !userData.password) {
+    if (editingUser.value && (!changePassword.value || !userData.password)) {
       delete userData.password
     }
 

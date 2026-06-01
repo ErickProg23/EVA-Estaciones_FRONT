@@ -139,7 +139,7 @@ const routes = [
     path: '/manuales/comparativas',
     name: 'lecturasComparativas',
     component: LecturasComparativasView,
-    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Encargado'] }
+    meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'Encargado', 'Administrativo'] }
   },
   {
     path: '/solicitudes',

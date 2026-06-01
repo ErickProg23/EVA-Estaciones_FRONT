@@ -132,7 +132,7 @@ export const useNavigationStore = defineStore('navigation', () => {
           value: 'manuales-comparativas',
           route: '/manuales/comparativas',
           type: 'item',
-          allowedRoles: ['ADMIN', 'Encargado']
+          allowedRoles: ['ADMIN', 'Encargado', 'Administrativo']
         },
         {
           title: 'Productos',
