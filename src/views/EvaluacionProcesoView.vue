@@ -85,7 +85,11 @@
                     <v-btn :value="5" size="small">5</v-btn>
                   </v-btn-toggle>
                 </div>
-                <v-chip class="ponderado-chip" color="purple" variant="tonal">Ponderado: {{ computePonderado(item) }}</v-chip>
+                <v-chip class="ponderado-chip" color="indigo" variant="elevated">
+                  <v-icon start size="16">mdi-scale-balance</v-icon>
+                  <span class="ponderado-chip__label">Ponderado</span>
+                  <span class="ponderado-chip__value">{{ computePonderado(item) }}</span>
+                </v-chip>
               </div>
             </v-col>
           </v-row>
@@ -557,14 +561,81 @@ watch(incapacidades, () => {
 <style scoped>
 .text-grey-500 { color: #9e9e9e; }
 
-.rating-toggle { display: flex; flex-wrap: wrap; gap: 8px; }
-.rating-toggle :deep(.v-btn) { min-width: 42px; height: 32px; padding: 0 10px; }
+.rating-toggle { min-width: 0; }
 
-.rating-row { display: flex; align-items: center; gap: 30px; justify-content: flex-start; }
-.rating-row .rating-toggle { flex: 0 1 auto; }
-.rating-row .ponderado-chip { margin-left: 4px; }
+.rating-toggle :deep(.v-btn-toggle),
+.rating-toggle :deep(.v-btn-group) {
+  display: flex;
+  flex-wrap: nowrap !important;
+  gap: 14px;
+  background: transparent;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+.rating-toggle :deep(.v-btn) {
+  min-width: 42px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 10px;
+  font-weight: 800;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.rating-toggle :deep(.v-btn--active) {
+  background: rgba(76, 175, 80, 0.22) !important;
+  box-shadow: 0 0 0 1px rgba(76, 175, 80, 0.35);
+}
+
+.rating-row { display: flex; align-items: center; gap: 12px; justify-content: space-between; width: 100%; }
+.rating-row .rating-toggle { flex: 1 1 auto; min-width: 0; }
+.rating-row .ponderado-chip { margin-left: auto; }
+
+.ponderado-chip {
+  min-width: 190px;
+  justify-content: flex-start;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+
+.ponderado-chip :deep(.v-chip__content) {
+  width: 100%;
+  gap: 8px;
+}
+
+.ponderado-chip__label {
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  opacity: 0.92;
+}
+
+.ponderado-chip__value {
+  margin-left: auto;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
 
 .chips-col { gap: 8px; flex-wrap: wrap; }
+
+.aspect-row {
+  position: relative;
+}
+
+.aspect-row::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.aspect-row:last-of-type::after {
+  display: none;
+}
 
 /* Mobile: compact buttons and reduced gaps */
 @media (max-width: 600px) {
@@ -573,13 +644,28 @@ watch(incapacidades, () => {
   .aspect-row .v-col { padding-top: 4px !important; padding-bottom: 4px !important; }
   .aspect-row .text-body-1 { font-size: 0.95rem; }
   .aspect-row .text-caption { font-size: 0.75rem; }
-  .rating-toggle { gap: 4px; }
-  .rating-toggle :deep(.v-btn) { min-width: 36px; height: 28px; padding: 0 8px; }
+  .rating-toggle :deep(.v-btn-toggle),
+  .rating-toggle :deep(.v-btn-group) {
+    gap: 8px;
+  }
+  .rating-toggle :deep(.v-btn) { min-width: 36px; height: 28px; padding: 0 8px; border-radius: 9px; }
   .rating-row { flex-direction: column; align-items: flex-start; gap: 6px; }
-  .rating-row .ponderado-chip { margin-left: 0; }
+  .rating-row .ponderado-chip { margin-left: 0; min-width: 100%; }
   .chips-col { text-align: left; margin-top: 2px; gap: 6px; }
   .summary-chips { flex-wrap: wrap; justify-content: flex-start; gap: 6px; }
   .summary-chips .v-chip { height: 28px; font-size: 0.8rem; }
+}
+
+@media (max-width: 1100px) {
+  .rating-toggle :deep(.v-btn-toggle),
+  .rating-toggle :deep(.v-btn-group) {
+    gap: 10px;
+  }
+
+  .rating-toggle :deep(.v-btn) {
+    min-width: 38px;
+    padding: 0 9px;
+  }
 }
 
 /* Desktop: a little more breathing room */

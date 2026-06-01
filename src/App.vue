@@ -38,35 +38,30 @@
           </v-btn>
         </template>
         
-        <v-list dark color="#2d2d2d" min-width="200">
-          <!-- Información del usuario -->
-          <v-list-item>
-            <template v-slot:prepend>
-              <!-- ✅ CAMBIAR: Avatar con iniciales -->
-              <v-avatar color="green" size="32">
-                <span class="text-white font-weight-bold text-body-2">
-                  {{ getUserInitials(currentUser?.nombre) }}
-                </span>
-              </v-avatar>
-            </template>
-            <v-list-item-title class="font-weight-bold">
-              {{ currentUser?.nombre || 'Usuario' }}
-            </v-list-item-title>
-            <v-list-item-subtitle>
-              {{ currentUser?.rol?.nombre || 'Sin rol' }}
-            </v-list-item-subtitle>
-          </v-list-item>
-          
-          <v-divider></v-divider>
-          
-          <!-- Cerrar sesión -->
-          <v-list-item @click="showLogoutDialog = true" class="text-red">
-            <template v-slot:prepend>
-              <v-icon color="red">mdi-logout</v-icon>
-            </template>
-            <v-list-item-title class="text-red">Cerrar Sesión</v-list-item-title>
-          </v-list-item>
-        </v-list>
+        <v-card class="user-menu" color="#2d2d2d" dark min-width="260">
+          <div class="user-menu__header">
+            <v-avatar color="green" size="44" class="user-menu__avatar">
+              <span class="text-white font-weight-bold text-h6">
+                {{ getUserInitials(currentUser?.nombre) }}
+              </span>
+            </v-avatar>
+            <div class="user-menu__meta">
+              <div class="user-menu__name">{{ currentUser?.nombre || 'Usuario' }}</div>
+              <div class="user-menu__role">{{ currentUserRoleName || 'Sin rol' }}</div>
+            </div>
+          </div>
+
+          <v-divider class="user-menu__divider"></v-divider>
+
+          <v-list class="user-menu__list" bg-color="transparent" density="compact">
+            <v-list-item @click="showLogoutDialog = true" class="user-menu__logout" rounded="lg">
+              <template v-slot:prepend>
+                <v-icon color="red">mdi-logout</v-icon>
+              </template>
+              <v-list-item-title class="text-red">Cerrar Sesión</v-list-item-title>
+            </v-list-item>
+          </v-list>
+        </v-card>
       </v-menu>
     </v-app-bar>
 
@@ -140,6 +135,14 @@ const router = useRouter()
 const route = useRoute()
 const navigationStore = useNavigationStore() // ✅ Ya existe
 const currentUser = ref(null)
+const currentUserRoleName = computed(() => {
+  return (
+    currentUser.value?.rol_nombre ||
+    currentUser.value?.rol?.nombre ||
+    sessionStorage.getItem('rol_nombre') ||
+    ''
+  )
+})
 
 // ✅ NUEVAS variables para el diálogo de logout
 const showLogoutDialog = ref(false)
@@ -176,11 +179,14 @@ const loadCurrentUser = () => {
   if (isAuthenticated.value) {
     const userData = sessionStorage.getItem('currentUser')
     if (userData) {
-      currentUser.value = JSON.parse(userData)
+      const parsed = JSON.parse(userData)
+      const rolNombre = parsed?.rol_nombre || parsed?.rol?.nombre || sessionStorage.getItem('rol_nombre') || null
+      currentUser.value = rolNombre ? { ...parsed, rol_nombre: rolNombre } : parsed
     } else {
+      const rolNombre = sessionStorage.getItem('rol_nombre') || null
       currentUser.value = {
         nombre: sessionStorage.getItem('username') || 'Usuario',
-        rol: { nombre: 'Usuario' }
+        rol_nombre: rolNombre || 'Usuario'
       }
     }
     
@@ -204,6 +210,9 @@ const confirmLogout = async () => {
     sessionStorage.removeItem('isAuthenticated')
     sessionStorage.removeItem('rol_id')
     sessionStorage.removeItem('estacion_id')
+    sessionStorage.removeItem('rol_nombre')
+    sessionStorage.removeItem('usuario_id')
+    sessionStorage.removeItem('nombre')
     
     // Actualizar estado reactivo
     updateAuthState()
@@ -253,6 +262,63 @@ window.addEventListener('storage', (e) => {
 <style scoped>
 .text-red {
   color: #f44336 !important;
+}
+
+.user-menu {
+  border-radius: 16px !important;
+  border: 1px solid rgba(76, 175, 80, 0.35);
+  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.6) !important;
+  overflow: hidden;
+}
+
+.user-menu__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 14px 12px;
+  background: linear-gradient(45deg, rgba(20, 20, 20, 0.75), rgba(45, 45, 45, 0.45));
+}
+
+.user-menu__avatar {
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+
+.user-menu__meta {
+  min-width: 0;
+}
+
+.user-menu__name {
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-menu__role {
+  margin-top: 2px;
+  font-size: 0.85rem;
+  opacity: 0.78;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-menu__divider {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.user-menu__list {
+  padding: 10px;
+}
+
+.user-menu__logout {
+  background: rgba(244, 67, 54, 0.07);
+}
+
+.user-menu__logout:hover {
+  background: rgba(244, 67, 54, 0.12);
 }
 
 /* ✅ NUEVOS estilos para el diálogo de logout */

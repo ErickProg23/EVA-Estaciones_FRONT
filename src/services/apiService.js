@@ -1014,7 +1014,12 @@ export const bombaService = {
       return { success: response.data?.success ?? true, data: response.data, message: response.data?.message || 'Lectura guardada correctamente' }
     } catch (error) {
       console.error('Error en guardarLecturaManual:', error)
-      return { success: false, data: null, message: error.response?.data?.message || error.message || 'Error de conexión' }
+      return {
+        success: false,
+        status: error.response?.status,
+        data: error.response?.data ?? null,
+        message: error.response?.data?.message || error.response?.data?.error || error.message || 'Error de conexión'
+      }
     }
   },
 

@@ -454,11 +454,6 @@
                     <div class="text-body-2">{{ formatDate(viewingTicket.fecha_creacion) }}</div>
                   </div>
                   
-                  <div v-if="ticketAssignedName" class="mb-3">
-                    <div class="text-caption text-grey-400">Asignado a</div>
-                    <div class="text-body-2">{{ ticketAssignedName }}</div>
-                  </div>
-                  
                   <div v-if="viewingTicket.fecha_resolucion" class="mb-3">
                     <div class="text-caption text-grey-400">Fecha resolución</div>
                     <div class="text-body-2">{{ formatDate(viewingTicket.fecha_resolucion) }}</div>
@@ -773,7 +768,6 @@ const headers = computed(() => {
   if (isAdmin.value) {
     baseHeaders.push(
       { title: 'Creado por', key: 'creador.nombre', sortable: true },
-      { title: 'Asignado a', key: 'asignado.nombre', sortable: true }
     )
   }
   

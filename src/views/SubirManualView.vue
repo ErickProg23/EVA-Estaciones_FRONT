@@ -160,6 +160,50 @@
           <v-icon class="mr-2">{{ mensaje.icon }}</v-icon>
           {{ mensaje.text }}
         </v-alert>
+
+        <v-dialog v-model="limitDialogOpen" max-width="560">
+          <v-card color="#2d2d2d" dark>
+            <v-card-title class="d-flex align-center">
+              <v-icon class="mr-2" color="orange">mdi-alert</v-icon>
+              Validación de límites
+            </v-card-title>
+            <v-card-text>
+              <div v-if="limitDialogStep === 1" class="text-body-1">
+                Las siguientes bombas contienen una diferencia mayor al límite. Favor de revisarlas antes de enviar.
+              </div>
+              <div v-else class="text-body-1">
+                Las siguientes bombas contienen una diferencia mayor al límite. ¿Seguro que deseas subir las lecturas con esos valores?
+              </div>
+
+              <v-list class="mt-3" density="compact" bg-color="transparent">
+                <v-list-item v-for="it in limitDialogItems" :key="it.key">
+                  <v-list-item-title class="text-body-2">
+                    {{ it.label }} — Diferencia: {{ formatNumber(it.diff) }} / Límite: {{ formatNumber(it.limite) }}
+                  </v-list-item-title>
+                </v-list-item>
+              </v-list>
+            </v-card-text>
+            <v-card-actions class="justify-end">
+              <v-btn
+                v-if="limitDialogStep === 1"
+                color="primary"
+                variant="elevated"
+                class="text-none"
+                @click="closeLimitDialog"
+              >
+                Revisar
+              </v-btn>
+              <template v-else>
+                <v-btn color="grey" variant="outlined" class="text-none" @click="closeLimitDialog">
+                  No, revisar
+                </v-btn>
+                <v-btn color="green" variant="elevated" class="text-none" :loading="guardando" @click="confirmLimitSave">
+                  Sí, guardar
+                </v-btn>
+              </template>
+            </v-card-actions>
+          </v-card>
+        </v-dialog>
       </v-card-text>
     </v-card>
   </v-container>
@@ -179,6 +223,11 @@ const turnoSeleccionado = ref(1)
 const guardando = ref(false)
 const mensaje = ref({ text: '', type: 'success', icon: 'mdi-check-circle' })
 let messageTimer = null
+
+const limitDialogOpen = ref(false)
+const limitDialogStep = ref(1)
+const limitDialogItems = ref([])
+const lastOverLimitKeySet = ref('')
 
 const usuarioId = sessionStorage.getItem('usuario_id')
 const estacionId = sessionStorage.getItem('estacion_id')
@@ -572,7 +621,34 @@ const productoStats = computed(() => {
 
 const puedeGuardarProducto = computed(() => productoStats.value.total > 0 && productoStats.value.faltantes === 0 && productoStats.value.errores === 0)
 
-async function guardarLecturasProducto() {
+function overLimitItemsCurrent() {
+  const items = []
+  for (const pump of currentPumps.value) {
+    const key = pumpKey(pump)
+    ensurePumpState(key)
+    const n = parseLectura(pumpStates[key].final)
+    if (!Number.isFinite(n)) continue
+    const inicio = Number(pumpStates[key].inicio ?? 0)
+    const limite = limiteMaxLitrosForKey(key)
+    if (!Number.isFinite(limite) || limite <= 0) continue
+    const diff = n - inicio
+    if (Number.isFinite(diff) && diff > limite) {
+      items.push({ key, label: pumpLabel(pump), numero: numeroVisibleBomba(pump), diff, limite })
+    }
+  }
+  items.sort((a, b) => Number(a.numero ?? 0) - Number(b.numero ?? 0))
+  return items
+}
+
+function overLimitKeySet(items) {
+  return items.map(i => i.key).sort().join('|')
+}
+
+function closeLimitDialog() {
+  limitDialogOpen.value = false
+}
+
+async function guardarLecturasProductoConfirmado() {
   mensaje.value.text = ''
   const stats = productoStats.value
   if (stats.total === 0) {
@@ -590,6 +666,7 @@ async function guardarLecturasProducto() {
   guardando.value = true
   let ok = 0
   let fail = 0
+  const duplicadas = []
   for (const pump of currentPumps.value) {
     try {
       const key = pumpKey(pump)
@@ -602,9 +679,17 @@ async function guardarLecturasProducto() {
       }
       const producto_id = productoIdFromPump(pump)
       let res = await bombaService.guardarLecturaManual({ ...base, producto_id })
-      const errTxt = String(res?.data?.error || res?.message || '')
+      const errTxt = String(res?.data?.error || res?.data?.message || res?.message || '')
       if (!res.success && (errTxt.includes('producto_id') || errTxt.includes('unexpected'))) {
         res = await bombaService.guardarLecturaManual({ ...base, producto: normalizeProducto(pump.producto) })
+      }
+      if (!res.success && (res.status === 409 || res?.data?.lectura_existente_id)) {
+        duplicadas.push({
+          numero: base.numero_bomba,
+          producto: normalizeProducto(pump.producto),
+          id: res?.data?.lectura_existente_id
+        })
+        continue
       }
       if (res.success) {
         localStorage.setItem(keyLSPump(pump, base.fecha, base.turno), JSON.stringify({ ...base, producto_id }))
@@ -618,14 +703,56 @@ async function guardarLecturasProducto() {
       fail++
     }
   }
-  if (fail === 0) {
+  if (fail === 0 && duplicadas.length === 0) {
     mensaje.value = { text: `Guardadas ${ok} lecturas de ${selectedProduct.value}`, type: 'success', icon: 'mdi-check-circle' }
     if (messageTimer) clearTimeout(messageTimer)
     messageTimer = setTimeout(() => { mensaje.value.text = '' }, 7000)
+  } else if (fail === 0 && duplicadas.length > 0) {
+    const list = duplicadas
+      .slice(0, 8)
+      .map(d => `Bomba ${d.numero} (${d.producto})`)
+      .join(', ')
+    const extra = duplicadas.length > 8 ? ` y ${duplicadas.length - 8} más` : ''
+    mensaje.value = { text: `Se guardaron ${ok} lecturas. Ya existían lecturas para: ${list}${extra}.`, type: 'warning', icon: 'mdi-alert' }
   } else {
-    mensaje.value = { text: `Se guardaron ${ok} lecturas y fallaron ${fail}. Verifica producto y número de bomba.`, type: 'error', icon: 'mdi-alert-circle' }
+    const dupTxt = duplicadas.length
+      ? ` Ya existían ${duplicadas.length} lecturas (no se guardaron).`
+      : ''
+    mensaje.value = { text: `Se guardaron ${ok} lecturas y fallaron ${fail}.${dupTxt} Verifica producto y número de bomba.`, type: 'error', icon: 'mdi-alert-circle' }
   }
   guardando.value = false
+  lastOverLimitKeySet.value = ''
+}
+
+async function confirmLimitSave() {
+  closeLimitDialog()
+  await guardarLecturasProductoConfirmado()
+}
+
+async function guardarLecturasProducto() {
+  const stats = productoStats.value
+  if (stats.total === 0 || stats.faltantes > 0 || stats.errores > 0) {
+    await guardarLecturasProductoConfirmado()
+    return
+  }
+
+  const items = overLimitItemsCurrent()
+  if (items.length === 0) {
+    lastOverLimitKeySet.value = ''
+    await guardarLecturasProductoConfirmado()
+    return
+  }
+
+  const keySet = overLimitKeySet(items)
+  limitDialogItems.value = items
+  if (lastOverLimitKeySet.value && lastOverLimitKeySet.value === keySet) {
+    limitDialogStep.value = 2
+    limitDialogOpen.value = true
+    return
+  }
+  lastOverLimitKeySet.value = keySet
+  limitDialogStep.value = 1
+  limitDialogOpen.value = true
 }
 
 async function loadBombas() {
@@ -658,6 +785,7 @@ watch([fechaSeleccionada, turnoSeleccionado], async () => {
     ensurePumpState(key)
     pumpStates[key].final = 0
   })
+  lastOverLimitKeySet.value = ''
   recalcularInicioAll()
 })
 
@@ -666,6 +794,7 @@ watch(selectedProduct, () => {
   currentPumps.value.forEach(p => ensurePumpState(pumpKey(p)))
   recalcularInicioAll()
   selectedPumpKey.value = ''
+  lastOverLimitKeySet.value = ''
 })
 
 onMounted(async () => {
