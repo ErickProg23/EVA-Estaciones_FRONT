@@ -166,6 +166,19 @@
                 ></v-text-field>
               </v-col>
               <v-col cols="12">
+                <v-select
+                  v-model="stationForm.max_turno"
+                  :items="turnosOptions"
+                  item-title="title"
+                  item-value="value"
+                  label="Turnos disponibles"
+                  variant="outlined"
+                  density="comfortable"
+                  hide-details="auto"
+                  :rules="[v => !!v || 'Selecciona los turnos']"
+                />
+              </v-col>
+              <v-col cols="12">
                 <v-switch
                   v-model="stationForm.activo"
                   label="Estación activa"
@@ -286,8 +299,14 @@ const stations = ref([])
 
 const stationForm = ref({
   nombre: '',
-  activo: true
+  activo: true,
+  max_turno: 3
 })
+
+const turnosOptions = [
+  { value: 2, title: '2 turnos (1 y 2)' },
+  { value: 3, title: '3 turnos (1, 2 y 3)' }
+]
 
 const statusOptions = [
   { value: true, title: 'Activo' },
@@ -389,15 +408,18 @@ const closeDialog = () => {
 const clearForm = () => {
   stationForm.value = {
     nombre: '',
-    activo: true
+    activo: true,
+    max_turno: 3
   }
 }
 
 const editStation = (station) => {
   editingStation.value = station
+  const maxTurno = Number(station.max_turno ?? station.turnos_disponibles ?? 3)
   stationForm.value = {
     nombre: station.nombre,
-    activo: station.activo
+    activo: station.activo,
+    max_turno: Number.isFinite(maxTurno) ? maxTurno : 3
   }
   showAddDialog.value = true
 }
@@ -410,7 +432,9 @@ const saveStation = async () => {
     
     const stationData = {
       nombre: stationForm.value.nombre,
-      activo: stationForm.value.activo
+      activo: stationForm.value.activo,
+      max_turno: stationForm.value.max_turno,
+      turnos_disponibles: stationForm.value.max_turno
     }
 
     let result

@@ -153,7 +153,6 @@ const headers = [
 const usuarioId = sessionStorage.getItem('usuario_id')
 const rolId = sessionStorage.getItem('rol_id')
 const isAdmin = computed(() => String(rolId ?? '') === '1')
-
 const estaciones = ref([])
 const selectedEstacionId = ref(null)
 

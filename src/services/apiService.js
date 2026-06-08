@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_URL = process.env.VUE_APP_API_URL
+const API_URL = 'https://api.eva-ep.com';
 
 // Configuración base de axios
 const apiClient = axios.create({
@@ -296,6 +296,19 @@ export const stationService = {
     }
   },
 
+  updateEstacion: async (id, estacionData) => {
+    try {
+      const response = await apiClient.put(`/api/updateEstacion/${id}`, estacionData)
+      return {
+        success: response.data.success,
+        data: response.data,
+        message: response.data.message
+      }
+    } catch (error) {
+      throw error
+    }
+  },
+
   deleteEstacion: async(estacionID) => {
     try {
       const response = await apiClient.put(`/api/deleteEstacion/${estacionID}`)
@@ -496,20 +509,6 @@ export const evaluacionService = {
         }
       }
     },
-    async get_empleados_by_usuario_estacion(usuario_id){
-    try {
-      const response = await apiClient.get(`/api/getEmpleadosByUsuarioEstacion/${usuario_id}`)
-      return {
-        success: true,
-        data: response.data
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: error.response?.data?.message || 'Error al obtener empleados de la estación'
-      }
-    }
-  },
 
   // Nuevo: Guardar borrador de evaluación (auto-guardado)
   async guardarBorrador(evaluacionData) {

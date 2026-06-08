@@ -534,7 +534,7 @@ function formatNumber(val) {
 }
 
 function parseLectura(val) {
-  const s = String(val ?? '').replace(/[\,\s]/g, '')
+  const s = String(val ?? '').replace(/[,\s]/g, '')
   const n = Number(s)
   return Number.isFinite(n) ? n : NaN
 }

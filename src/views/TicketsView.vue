@@ -528,7 +528,9 @@
               {{ ticketToDelete?.titulo }}
             </p>
             <v-alert type="warning" variant="outlined" class="text-left">
-              <v-icon slot="prepend">mdi-warning</v-icon>
+              <template #prepend>
+                <v-icon>mdi-warning</v-icon>
+              </template>
               Esta acción no se puede deshacer. Toda la información del ticket se perderá permanentemente.
             </v-alert>
           </div>
