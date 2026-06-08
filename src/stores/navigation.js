@@ -121,13 +121,13 @@ export const useNavigationStore = defineStore('navigation', () => {
       ]
     },
     {
-      title: 'Manuales',
-      icon: 'mdi-file-document-multiple',
+      title: 'Lecturas',
+      icon: 'mdi-gauge',
       value: 'manuales',
       type: 'group',
       children: [
         {
-          title: 'Lecturas comparativas',
+          title: 'Lecturas manuales',
           icon: 'mdi-clipboard-list',
           value: 'manuales-comparativas',
           route: '/manuales/comparativas',
