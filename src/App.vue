@@ -250,6 +250,13 @@ watch(isAuthenticated, (newValue) => {
   }
 })
 
+watch(
+  () => route.fullPath,
+  () => {
+    navigationStore.drawer = false
+  }
+)
+
 // ✅ MODIFICAR: Escuchar cambios en sessionStorage
 window.addEventListener('storage', (e) => {
   if (e.key === 'isAuthenticated' || e.key === 'rol_id') {
