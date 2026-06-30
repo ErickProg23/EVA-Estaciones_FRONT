@@ -455,11 +455,21 @@ function ensurePumpState(key) {
 
 const prevLecturas = reactive({})
 async function loadPrevLecturas() {
+  Object.keys(prevLecturas).forEach(key => {
+    delete prevLecturas[key]
+  })
+
   if (!estacionId) return
-  const { turno: prevTurno, fecha: prevFechaStr } = prevTurnoFecha(fechaSeleccionada.value, turnoSeleccionado.value)
+
+  const { turno: prevTurno, fecha: prevFechaStr } = prevTurnoFecha(
+    fechaSeleccionada.value,
+    turnoSeleccionado.value
+  )
+
   try {
     const res = await bombaService.getLecturasManualUltimas(estacionId, prevFechaStr, prevTurno)
     const list = res.success ? (Array.isArray(res.data) ? res.data : []) : []
+
     for (const it of list) {
       const key = `${it.estacion_id}:${it.producto_id}:${String(it.numero_bomba)}`
       const lectura = Number(it.cantidad ?? it.lectura ?? it.final ?? 0)
