@@ -796,6 +796,7 @@ watch([fechaSeleccionada, turnoSeleccionado], async () => {
     pumpStates[key].final = 0
   })
   lastOverLimitKeySet.value = ''
+  await loadPrevLecturas()
   recalcularInicioAll()
 })
 

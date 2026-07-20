@@ -1,6 +1,7 @@
 import axios from 'axios'
 
-const API_URL = 'https://api.eva-ep.com';
+
+const API_URL = process.env.VUE_APP_API_URL;
 
 // Configuración base de axios
 const apiClient = axios.create({
@@ -780,6 +781,30 @@ export const reporteService = {
       return {
         success: false,
         data: [],
+        message: error.response?.data?.message || error.message || 'Error de conexión'
+      }
+    }
+  },
+
+  getDetalleEvaluacionIndividual: async ({ empleado_id, mes, anio }) => {
+    try {
+      const params = new URLSearchParams()
+      if (empleado_id) params.append('empleado_id', empleado_id)
+      if (mes) params.append('mes', mes)
+      if (anio) params.append('anio', anio)
+
+      const response = await apiClient.get(`/api/getDetalleEvaluacionIndividual?${params.toString()}`)
+
+      return {
+        success: true,
+        data: response.data?.data || null,
+        message: response.data?.message || 'Detalle individual obtenido correctamente'
+      }
+    } catch (error) {
+      console.error('Error en getDetalleEvaluacionIndividual:', error)
+      return {
+        success: false,
+        data: null,
         message: error.response?.data?.message || error.message || 'Error de conexión'
       }
     }

@@ -197,6 +197,19 @@
                       <template #item.mes="{ item }">
                         {{ getMonthName(item.mes) }} {{ item.año }}
                       </template>
+
+                      <template #item.actions="{ item }">
+                        <v-btn
+                          color="primary"
+                          variant="text"
+                          size="small"
+                          class="text-none"
+                          @click="openDetailDialog(item)"
+                        >
+                          <v-icon start>mdi-eye-outline</v-icon>
+                          Ver detalle
+                        </v-btn>
+                      </template>
                     </v-data-table>
                   </v-card-text>
                 </v-card>
@@ -225,12 +238,204 @@
         </v-btn>
       </template>
     </v-snackbar>
+
+    <v-dialog
+      v-model="detailDialog"
+      max-width="1180"
+      class="report-detail-dialog"
+    >
+      <v-card
+        color="#222222"
+        class="report-detail-card"
+      >
+        <v-card-title class="d-flex align-center justify-space-between py-4">
+          <div class="d-flex align-center ga-3">
+            <v-avatar
+              size="42"
+              color="primary"
+              variant="tonal"
+            >
+              <v-icon>mdi-account-search-outline</v-icon>
+            </v-avatar>
+            <div>
+              <div class="text-h6 font-weight-bold text-white">Detalle de evaluación</div>
+              <div class="text-caption text-grey-lighten-1">
+                {{ selectedDetail?.empleado_nombre || 'Sin empleado' }}
+              </div>
+            </div>
+          </div>
+          <v-btn
+            icon
+            variant="text"
+            @click="detailDialog = false"
+          >
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
+
+        <v-divider />
+
+        <v-card-text class="pa-5">
+          <div v-if="detailLoading" class="py-8">
+            <v-skeleton-loader
+              type="heading, paragraph, article, table"
+              color="transparent"
+            />
+          </div>
+
+          <div v-else class="detail-content">
+            <div class="detail-hero">
+              <div class="detail-hero__main">
+                <div class="detail-label">Periodo evaluado</div>
+                <div class="detail-hero__title">{{ detailPeriod }}</div>
+                <div class="detail-hero__meta">
+                  <v-chip size="small" color="white" variant="tonal">
+                    Capturada el {{ detailCaptureDate }}
+                  </v-chip>
+                  <v-chip size="small" color="primary" variant="tonal">
+                    Evaluación #{{ detailEvaluacionId }}
+                  </v-chip>
+                </div>
+              </div>
+
+              <div class="detail-score-card">
+                <div class="detail-score-card__label">Resultado final</div>
+                <div class="detail-score-card__value">{{ detailAverage }}</div>
+                <div class="detail-score-card__meta">{{ detailPercentage }} de cumplimiento</div>
+                <v-chip
+                  :color="getScoreColor(detailAverageNumber)"
+                  size="small"
+                  variant="flat"
+                  class="font-weight-bold"
+                >
+                  Calificación final
+                </v-chip>
+              </div>
+            </div>
+
+            <div class="detail-body-grid">
+              <div class="detail-section">
+                <div class="detail-section__title">Información general</div>
+                <div class="detail-info-grid">
+                  <div class="detail-block">
+                    <div class="detail-label">Empleado</div>
+                    <div class="detail-value">{{ detailEmpleadoNombre }}</div>
+                  </div>
+                  <div class="detail-block">
+                    <div class="detail-label">Puesto</div>
+                    <div class="detail-value">{{ detailPuestoNombre }}</div>
+                  </div>
+                  <div class="detail-block">
+                    <div class="detail-label">Estación</div>
+                    <div class="detail-value">{{ detailEstacionNombre }}</div>
+                  </div>
+                  <div class="detail-block">
+                    <div class="detail-label">Evaluaciones registradas</div>
+                    <div class="detail-value">{{ selectedDetail?.total_evaluaciones ?? 0 }}</div>
+                    <div class="detail-meta">Ligadas al periodo mostrado</div>
+                  </div>
+                </div>
+
+                <div class="detail-section detail-section--compact">
+                  <div class="detail-section__title">Indicadores</div>
+                  <div class="detail-metrics-grid">
+                    <div class="detail-block detail-block--metric">
+                      <div class="detail-label">Porcentaje final</div>
+                      <div class="detail-value">{{ detailPercentage }}</div>
+                      <div class="detail-meta">Resultado global</div>
+                    </div>
+                    <div class="detail-block detail-block--metric">
+                      <div class="detail-label">Faltas</div>
+                      <div class="detail-value">{{ detailFaltas }}</div>
+                      <div class="detail-meta">Registradas en la evaluación</div>
+                    </div>
+                    <div class="detail-block detail-block--metric">
+                      <div class="detail-label">Incapacidad</div>
+                      <div class="detail-value">{{ detailIncapacidad }}</div>
+                      <div class="detail-meta">Días reportados</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="detail-section detail-section--compact">
+                  <div class="detail-section__title">Comentario</div>
+                  <div class="detail-block comment-block">
+                    <div class="detail-comment">{{ detailComentario }}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="detail-section">
+                <div class="detail-section__title">Desglose por aspecto</div>
+                <div class="detail-block detail-block--aspects">
+                  <div class="d-flex align-center justify-space-between mb-3">
+                    <div class="detail-meta detail-meta--header">Aspectos evaluados</div>
+                    <v-chip size="small" color="primary" variant="tonal">
+                      {{ detailDetalles.length }} aspectos
+                    </v-chip>
+                  </div>
+
+                  <div v-if="detailDetalles.length === 0" class="detail-empty">
+                    No hay desglose disponible para esta evaluación.
+                  </div>
+
+                  <div v-else class="detail-aspects">
+                    <div
+                      v-for="detalle in detailDetalles"
+                      :key="`${detalle.aspecto_id}-${detalle.aspecto_nombre}`"
+                      class="detail-aspect-row"
+                    >
+                      <div>
+                        <div class="detail-aspect-name">{{ detalle.aspecto_nombre }}</div>
+                        <div class="detail-aspect-meta">Peso {{ formatDetailNumber(detalle.peso) }}</div>
+                      </div>
+                      <div class="detail-aspect-metrics">
+                        <v-chip size="small" color="info" variant="tonal">
+                          Calif. {{ formatDetailNumber(detalle.calificacion) }}
+                        </v-chip>
+                        <v-chip size="small" color="secondary" variant="tonal">
+                          Pond. {{ formatDetailNumber(detalle.ponderado) }}
+                        </v-chip>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </v-card-text>
+
+        <v-divider />
+
+        <v-card-actions class="px-6 py-4 justify-end">
+          <v-btn
+            color="primary"
+            variant="flat"
+            class="text-none"
+            prepend-icon="mdi-download"
+            :loading="detailExporting"
+            :disabled="detailLoading || !selectedDetail"
+            @click="downloadDetailPdf"
+          >
+            Descargar evaluación
+          </v-btn>
+          <v-btn
+            variant="text"
+            @click="detailDialog = false"
+          >
+            Cerrar
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, computed, nextTick } from 'vue'
 import { Chart, registerables } from 'chart.js'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 import LoadingWave from '@/components/LoadingWave.vue'
 import { evaluacionService, stationService, puestoService, reporteService } from '@/services/apiService.js'
 
@@ -248,6 +453,11 @@ const exporting = ref(false)
 const showSnackbar = ref(false)
 const snackbarMessage = ref('')
 const snackbarColor = ref('success')
+const detailDialog = ref(false)
+const selectedDetail = ref(null)
+const detailLoading = ref(false)
+const detailData = ref(null)
+const detailExporting = ref(false)
 
 // Filtros
 const selectedYear = ref(new Date().getFullYear())
@@ -310,11 +520,14 @@ const monthOptions = computed(() => [
 
 // Aplicar filtros seleccionados al dataset
 const matchesFilters = (item) => {
-  const date = item.fecha_evaluacion ? new Date(item.fecha_evaluacion) : null
-  if (selectedYear.value && date && date.getFullYear() !== Number(selectedYear.value)) return false
-  if (selectedMonth.value && date && (date.getMonth() + 1) !== Number(selectedMonth.value)) return false
+  const itemYear = Number(item.año ?? item.anio)
+  const itemMonth = Number(item.mes)
+
+  if (selectedYear.value && itemYear !== Number(selectedYear.value)) return false
+  if (selectedMonth.value && itemMonth !== Number(selectedMonth.value)) return false
   if (selectedEstacion.value && item.estacion_id !== Number(selectedEstacion.value)) return false
   if (selectedPuesto.value && item.puesto_id !== Number(selectedPuesto.value)) return false
+
   return true
 }
 
@@ -337,10 +550,12 @@ const puestoOptions = computed(() => {
 // Headers de la tabla
 const tableHeaders = [
   { title: 'Mes', key: 'mes', sortable: true },
+  { title: 'Empleado', key: 'empleado_nombre', sortable: true },
   { title: 'Estación', key: 'estacion_nombre', sortable: true },
   { title: 'Puesto', key: 'puesto_nombre', sortable: true },
   { title: 'Promedio', key: 'promedio', sortable: true },
-  { title: 'Evaluaciones', key: 'total_evaluaciones', sortable: true }
+  { title: 'Evaluaciones', key: 'total_evaluaciones', sortable: true },
+  { title: 'Acciones', key: 'actions', sortable: false, align: 'end' }
 ]
 
 // ===== METHODS =====
@@ -374,6 +589,187 @@ const getMonthName = (month) => {
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
   ]
   return months[month - 1] || 'Desconocido'
+}
+
+const formatCaptureDate = (value) => {
+  if (!value) return 'Sin fecha'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+  return date.toLocaleDateString('es-MX', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })
+}
+
+const formatDetailNumber = (value) => {
+  const num = Number(value ?? 0)
+  return num.toFixed(2)
+}
+
+const sanitizeFileNamePart = (value) => {
+  return String(value || 'sin-dato')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+const openDetailDialog = async (item) => {
+  selectedDetail.value = item
+  detailDialog.value = true
+  detailLoading.value = true
+  detailData.value = null
+
+  const payload = {
+    empleado_id: item.empleado_id,
+    mes: item.mes,
+    anio: item.año ?? item.anio
+  }
+
+  const result = await reporteService.getDetalleEvaluacionIndividual(payload)
+  if (result.success) {
+    detailData.value = result.data
+  } else {
+    showMessage(result.message || 'No se pudo cargar el detalle individual', 'warning')
+  }
+
+  detailLoading.value = false
+}
+
+const detailPeriod = computed(() => {
+  if (!selectedDetail.value) return 'Sin periodo'
+  const month = Number(detailData.value?.evaluacion?.mes ?? selectedDetail.value.mes)
+  const year = Number(detailData.value?.evaluacion?.anio ?? selectedDetail.value.año ?? selectedDetail.value.anio)
+  return `${getMonthName(month)} ${year || ''}`.trim()
+})
+
+const detailCaptureDate = computed(() => formatCaptureDate(detailData.value?.evaluacion?.fecha_evaluacion ?? selectedDetail.value?.fecha_evaluacion))
+
+const detailAverageNumber = computed(() => Number(detailData.value?.evaluacion?.calificacion_final ?? selectedDetail.value?.promedio ?? 0))
+
+const detailAverage = computed(() => {
+  const value = detailAverageNumber.value
+  return value.toFixed(2)
+})
+
+const detailPercentage = computed(() => `${formatDetailNumber(detailData.value?.evaluacion?.porcentaje_final ?? 0)}%`)
+const detailComentario = computed(() => detailData.value?.evaluacion?.comentario || 'Sin comentario registrado')
+const detailFaltas = computed(() => detailData.value?.evaluacion?.faltas ?? 0)
+const detailIncapacidad = computed(() => detailData.value?.evaluacion?.incapacidad ?? 0)
+const detailDetalles = computed(() => Array.isArray(detailData.value?.detalles) ? detailData.value.detalles : [])
+
+const detailEmpleadoNombre = computed(() => detailData.value?.empleado?.nombre || selectedDetail.value?.empleado_nombre || 'Sin nombre')
+const detailEmpleadoId = computed(() => detailData.value?.empleado?.id ?? selectedDetail.value?.empleado_id ?? 'N/D')
+const detailPuestoNombre = computed(() => detailData.value?.empleado?.puesto_nombre || selectedDetail.value?.puesto_nombre || 'Sin puesto')
+const detailPuestoId = computed(() => detailData.value?.empleado?.puesto_id ?? selectedDetail.value?.puesto_id ?? 'N/D')
+const detailEstacionNombre = computed(() => detailData.value?.empleado?.estacion_nombre || selectedDetail.value?.estacion_nombre || 'Sin estación')
+const detailEstacionId = computed(() => detailData.value?.empleado?.estacion_id ?? selectedDetail.value?.estacion_id ?? 'N/D')
+const detailEvaluacionId = computed(() => detailData.value?.evaluacion?.id ?? selectedDetail.value?.id ?? 'N/D')
+
+const downloadDetailPdf = async () => {
+  if (!selectedDetail.value) return
+
+  detailExporting.value = true
+  try {
+    if (!detailData.value) {
+      const result = await reporteService.getDetalleEvaluacionIndividual({
+        empleado_id: selectedDetail.value.empleado_id,
+        mes: selectedDetail.value.mes,
+        anio: selectedDetail.value.año ?? selectedDetail.value.anio
+      })
+
+      if (result.success) {
+        detailData.value = result.data
+      } else {
+        showMessage(result.message || 'No se pudo cargar el detalle para exportar', 'warning')
+        return
+      }
+    }
+
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    })
+
+    const primaryColor = [46, 125, 50]
+    const textColor = [33, 33, 33]
+    const subtleColor = [97, 97, 97]
+
+    doc.setFillColor(...primaryColor)
+    doc.rect(0, 0, 210, 24, 'F')
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(18)
+    doc.setTextColor(255, 255, 255)
+    doc.text('Evaluacion Individual', 14, 15)
+
+    doc.setTextColor(...textColor)
+    doc.setFontSize(12)
+    doc.text(`Empleado: ${detailEmpleadoNombre.value}`, 14, 36)
+    doc.setFontSize(10)
+    doc.setTextColor(...subtleColor)
+    doc.text(`Periodo evaluado: ${detailPeriod.value}`, 14, 43)
+    doc.text(`Fecha de captura: ${detailCaptureDate.value}`, 14, 49)
+
+    doc.setTextColor(...textColor)
+    doc.setFontSize(10)
+    doc.text(`Puesto: ${detailPuestoNombre.value}`, 14, 60)
+    doc.text(`Estacion: ${detailEstacionNombre.value}`, 105, 60)
+    doc.text(`Calificacion final: ${detailAverage.value}`, 14, 66)
+    doc.text(`Porcentaje final: ${detailPercentage.value}`, 105, 66)
+    doc.text(`Faltas: ${detailFaltas.value}`, 14, 72)
+    doc.text(`Incapacidad: ${detailIncapacidad.value}`, 105, 72)
+
+    doc.setFont('helvetica', 'bold')
+    doc.text('Comentario', 14, 84)
+    doc.setFont('helvetica', 'normal')
+    const comentario = doc.splitTextToSize(detailComentario.value, 180)
+    doc.text(comentario, 14, 90)
+
+    const commentHeight = Math.max(12, comentario.length * 5)
+    const tableStartY = 92 + commentHeight
+
+    autoTable(doc, {
+      startY: tableStartY,
+      head: [['Aspecto', 'Peso', 'Calificacion', 'Ponderado']],
+      body: detailDetalles.value.map((detalle) => ([
+        detalle.aspecto_nombre || 'Sin aspecto',
+        formatDetailNumber(detalle.peso),
+        formatDetailNumber(detalle.calificacion),
+        formatDetailNumber(detalle.ponderado)
+      ])),
+      styles: {
+        font: 'helvetica',
+        fontSize: 9,
+        cellPadding: 2.5
+      },
+      headStyles: {
+        fillColor: primaryColor,
+        textColor: [255, 255, 255],
+        fontStyle: 'bold'
+      },
+      alternateRowStyles: {
+        fillColor: [245, 245, 245]
+      },
+      margin: { left: 14, right: 14 }
+    })
+
+    const finalY = doc.lastAutoTable?.finalY || tableStartY + 20
+    doc.setFontSize(8)
+    doc.setTextColor(...subtleColor)
+    doc.text('Generado desde EVA - Reportes de evaluacion', 14, finalY + 12)
+
+    const fileName = `evaluacion_${sanitizeFileNamePart(detailEmpleadoNombre.value)}_${sanitizeFileNamePart(detailPeriod.value)}.pdf`
+    doc.save(fileName)
+    showMessage('PDF descargado correctamente', 'success')
+  } catch (error) {
+    console.error('Error al descargar evaluacion individual:', error)
+    showMessage('Error al generar el PDF de la evaluacion', 'error')
+  } finally {
+    detailExporting.value = false
+  }
 }
 
 // Cargar datos iniciales
@@ -674,10 +1070,10 @@ const updateLineChart = () => {
     const monthlyData = {}
     
     dataSrc.forEach(item => {
-      if (!item.fecha_evaluacion || !item.calificacion_promedio) return
+      if (!item.año || !item.mes) return
       
-      const date = new Date(item.fecha_evaluacion)
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+      const date = new Date(item.año, item.mes - 1)
+      const monthKey = `${date.getFullYear()}-${String(date.getDate()).padStart(2, '0')}`
       const monthName = getMonthName(date.getMonth() + 1)
       const calificacion = parseFloat(item.promedio) || 0
       
@@ -1109,5 +1505,241 @@ onMounted(() => {
 
 .transparent >>> .v-data-table-rows-no-data {
   background: transparent;
+}
+
+.report-detail-card {
+  background:
+    linear-gradient(180deg, #252525, #181818) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 26px 80px rgba(0, 0, 0, 0.48);
+}
+
+.report-detail-dialog :deep(.v-overlay__scrim) {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.detail-content {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.detail-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 14px;
+  align-items: stretch;
+}
+
+.detail-hero__main,
+.detail-score-card {
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.detail-hero__main {
+  background: linear-gradient(135deg, rgba(46, 125, 50, 0.16), rgba(255, 255, 255, 0.03));
+}
+
+.detail-hero__title {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.15;
+}
+
+.detail-hero__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.detail-score-card {
+  background: linear-gradient(180deg, rgba(76, 175, 80, 0.18), rgba(255, 255, 255, 0.03));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.detail-score-card__label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.68);
+}
+
+.detail-score-card__value {
+  font-size: 1.85rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #ffffff;
+}
+
+.detail-score-card__meta {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.74);
+}
+
+.detail-section__title {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.58);
+  margin-bottom: 6px;
+}
+
+.detail-section--compact {
+  margin-top: 14px;
+}
+
+.detail-body-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.15fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.detail-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.detail-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.detail-block {
+  height: 100%;
+  padding: 14px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(43, 43, 43, 0.98), rgba(31, 31, 31, 0.98));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.detail-block--metric {
+  min-height: 104px;
+}
+
+.detail-block--aspects {
+  min-height: 100%;
+}
+
+.detail-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.62);
+  margin-bottom: 6px;
+}
+
+.detail-value {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.detail-meta {
+  margin-top: 6px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.85rem;
+}
+
+.detail-meta--header {
+  margin-top: 0;
+}
+
+.comment-block {
+  min-height: 100%;
+  height: 100%;
+}
+
+.detail-comment {
+  color: rgba(255, 255, 255, 0.88);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  font-size: 0.96rem;
+}
+
+.detail-empty {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.92rem;
+  padding: 12px 0 4px;
+}
+
+.detail-aspects {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.detail-aspect-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.detail-aspect-name {
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.detail-aspect-meta {
+  margin-top: 4px;
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.detail-aspect-metrics {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+@media (max-width: 960px) {
+  .detail-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-body-grid,
+  .detail-info-grid,
+  .detail-metrics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-aspects {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .detail-hero__title {
+    font-size: 1.35rem;
+  }
+
+  .detail-score-card__value {
+    font-size: 1.7rem;
+  }
+
+  .detail-aspect-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .detail-aspect-metrics {
+    justify-content: flex-start;
+  }
 }
 </style>
