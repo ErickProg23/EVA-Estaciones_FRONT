@@ -292,9 +292,6 @@
                   <v-chip size="small" color="white" variant="tonal">
                     Capturada el {{ detailCaptureDate }}
                   </v-chip>
-                  <v-chip size="small" color="primary" variant="tonal">
-                    Evaluación #{{ detailEvaluacionId }}
-                  </v-chip>
                 </div>
               </div>
 
@@ -486,6 +483,18 @@ let lineChart = null
 let doughnutChart = null
 let barChart = null
 
+const formatEmpleadoTick = (label) => {
+  const s = String(label || '').trim()
+  if (!s) return ''
+  const parts = s.split(/\s+/).filter(Boolean)
+  if (parts.length === 1) return parts[0]
+  const maxLen = 16
+  const shorten = (v) => (String(v).length > maxLen ? `${String(v).slice(0, maxLen - 1)}…` : String(v))
+  const apellido = parts[parts.length - 1]
+  const nombre = parts.slice(0, -1).join(' ')
+  return [shorten(nombre), shorten(apellido)]
+}
+
 // Estados de carga
 const dataLoadingStates = ref({
   estaciones: false,
@@ -533,9 +542,11 @@ const matchesFilters = (item) => {
 
 const filteredData = computed(() => reportData.value.filter(matchesFilters))
 
+const isTodasEstacion = (nombre) => String(nombre || '').trim().toLowerCase() === 'todas'
+
 const estacionOptions = computed(() => {
   return estaciones.value
-    .filter(estacion => estacion.nombre !== 'TODAS')
+    .filter(estacion => !isTodasEstacion(estacion.nombre))
     .map(estacion => ({ text: estacion.nombre, value: estacion.id }))
 })
 
@@ -781,7 +792,7 @@ const loadEstaciones = async () => {
     if (result.success) {
       estaciones.value = result.data
       const storedId = Number(sessionStorage.getItem('estacion_id'))
-      const ids = estaciones.value.filter(e => e.nombre !== 'TODAS').map(e => e.id)
+      const ids = estaciones.value.filter(e => !isTodasEstacion(e.nombre)).map(e => e.id)
       if (storedId && ids.includes(storedId)) {
         selectedEstacion.value = storedId
       } else {
@@ -827,12 +838,23 @@ const loadReportData = async () => {
   try {
     loading.value = true
     loadingMessage.value = 'Cargando datos de reportes...'
+
+    if (!selectedEstacion.value) {
+      reportData.value = []
+      calculateStatistics()
+      await nextTick()
+      updateCharts()
+      showMessage('Selecciona una estación para cargar la información', 'info')
+      dataLoadingStates.value.reportes = true
+      updateLoadingProgress()
+      return
+    }
     
     // Preparar filtros basados en las selecciones del usuario
     const filtros = {}
     if (selectedYear.value) filtros.año = selectedYear.value
     if (selectedMonth.value) filtros.mes = selectedMonth.value
-    if (selectedEstacion.value) filtros.estacion_id = selectedEstacion.value
+    filtros.estacion_id = selectedEstacion.value
     if (selectedPuesto.value) filtros.puesto_id = selectedPuesto.value
     
     // Llamar al servicio de reportes
@@ -1041,7 +1063,15 @@ const updateLineChart = () => {
           x: {
             ticks: {
               color: '#ffffff',
-              maxRotation: 45
+              autoSkip: false,
+              maxRotation: 0,
+              minRotation: 0,
+              font: { size: 10 },
+              padding: 6,
+              callback: function(value) {
+                const label = this.getLabelForValue(value)
+                return formatEmpleadoTick(label)
+              }
             },
             grid: {
               color: 'rgba(255, 255, 255, 0.1)'

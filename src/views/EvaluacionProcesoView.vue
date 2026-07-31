@@ -4,7 +4,7 @@
       <div>
         <h1 class="text-h5 font-weight-bold">
           <v-icon class="mr-2" color="green">mdi-clipboard-text</v-icon>
-          Evaluación — {{ puestoNombre }}
+          Evaluación — {{ puestoNombre }}<span v-if="periodoLabel"> — {{ periodoLabel }}</span>
         </h1>
         <p class="text-grey-500 ma-0">Proceso secuencial, inicia automáticamente</p>
       </div>
@@ -198,6 +198,16 @@ import { evaluacionService, aspectoService, puestoService } from '@/services/api
 const route = useRoute()
 const router = useRouter()
 const puestoNombre = route.params.puestoNombre
+
+const targetMes = computed(() => Number(route.query.mes || 0))
+const targetAnio = computed(() => Number(route.query.anio || 0))
+const isLateMode = computed(() => String(route.query.late || '') === '1' && targetMes.value > 0 && targetAnio.value > 0)
+const monthName = (m) => {
+  const d = new Date(2000, Number(m || 1) - 1, 1)
+  const name = d.toLocaleString('es-MX', { month: 'long' })
+  return name ? name.charAt(0).toUpperCase() + name.slice(1) : ''
+}
+const periodoLabel = computed(() => (isLateMode.value ? `${monthName(targetMes.value)} ${targetAnio.value}` : ''))
 
 const empleados = ref([])
 const indiceActual = ref(0)
@@ -422,6 +432,11 @@ const evaluarTodo = async () => {
         comentarios: estado.comentarios || '',
         faltas: Number(estado.faltas) || 0,
         incapacidad: Number(estado.incapacidades) || 0
+      }
+
+      if (isLateMode.value) {
+        payload.mes = targetMes.value
+        payload.anio = targetAnio.value
       }
 
       const saveRes = await evaluacionService.finalizarEvaluacionPuesto(payload)

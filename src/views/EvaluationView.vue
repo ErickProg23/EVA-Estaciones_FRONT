@@ -18,10 +18,22 @@
         </h1>
         <p class="text-grey-500 ma-0">Elige el puesto para continuar con la evaluación</p>
       </div>
-      <v-btn color="primary" :loading="isLoading" @click="cargarPuestos">
-        <v-icon left>mdi-refresh</v-icon>
-        Recargar
-      </v-btn>
+      <div class="d-flex align-center ga-2">
+        <v-btn
+          v-if="lateEvalDisponible"
+          :color="isLateMode ? 'grey' : 'orange'"
+          variant="tonal"
+          :disabled="isLoading"
+          @click="toggleLateMode"
+        >
+          <v-icon left>mdi-history</v-icon>
+          {{ isLateMode ? 'Salir de atrasado' : `Evaluar atrasado — ${lateEvalLabel}` }}
+        </v-btn>
+        <v-btn color="primary" :loading="isLoading" @click="cargarPuestos">
+          <v-icon left>mdi-refresh</v-icon>
+          Recargar
+        </v-btn>
+      </div>
     </div>
 
     <!-- Mensajes -->
@@ -50,6 +62,14 @@
           <div class="d-flex align-center justify-space-between">
             <div class="text-h6">{{ p.nombre }}</div>
             <v-chip v-if="p.evaluado" color="green" variant="tonal" size="small">Evaluado</v-chip>
+            <v-chip
+              v-else-if="!periodoActivo && !isLateMode"
+              :color="periodoStatus === 'pending' ? 'grey' : 'error'"
+              variant="tonal"
+              size="small"
+            >
+              {{ periodoStatus === 'pending' ? 'Bloqueado' : 'Vencido' }}
+            </v-chip>
           </div>
           <div class="text-caption text-grey">Empleados: {{ p.cantidad }}</div>
         </v-card>
@@ -131,6 +151,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { evaluacionService, puestoService, reporteService, dashboardService } from '@/services/apiService'
+import { formatBackendDateTimeLocal, formatDateEs, getEvaluationStatus } from '@/utils/evaluationPeriod'
 
 
 const isLoading = ref(false)
@@ -155,8 +176,45 @@ const estacionIdSesion = () =>
   sessionStorage.getItem('estacionId') ||
   sessionStorage.getItem('station_id')
 
-const mesActual = () => new Date().getMonth() + 1
-const añoActual = () => new Date().getFullYear()
+const targetMes = ref(null)
+const targetAnio = ref(null)
+const isLateMode = computed(() => Number(targetMes.value) > 0 && Number(targetAnio.value) > 0)
+const mesEvaluacion = computed(() => (isLateMode.value ? Number(targetMes.value) : (new Date().getMonth() + 1)))
+const anioEvaluacion = computed(() => (isLateMode.value ? Number(targetAnio.value) : new Date().getFullYear()))
+
+const monthName = (m) => {
+  const d = new Date(2000, Number(m || 1) - 1, 1)
+  const name = d.toLocaleString('es-MX', { month: 'long' })
+  return name ? name.charAt(0).toUpperCase() + name.slice(1) : ''
+}
+
+const lateEval = ref(null)
+const lateEvalDisponible = computed(() => !!(lateEval.value?.enabled && lateEval.value?.mes && lateEval.value?.anio))
+const lateEvalLabel = computed(() => {
+  if (!lateEvalDisponible.value) return ''
+  return `${monthName(lateEval.value.mes)} ${lateEval.value.anio}`
+})
+
+const toggleLateMode = async () => {
+  if (isLoading.value) return
+  if (!isLateMode.value) {
+    if (!lateEvalDisponible.value) return
+    targetMes.value = Number(lateEval.value.mes)
+    targetAnio.value = Number(lateEval.value.anio)
+    await cargarPuestos()
+    mensaje.value = `Modo atrasado activo: ${monthName(targetMes.value)} ${targetAnio.value}.`
+    mensajeTipo.value = 'warning'
+    return
+  }
+  targetMes.value = null
+  targetAnio.value = null
+  await cargarPuestos()
+  mensaje.value = 'Modo atrasado desactivado. Evaluación del mes actual.'
+  mensajeTipo.value = 'info'
+}
+
+const mesActual = () => mesEvaluacion.value
+const añoActual = () => anioEvaluacion.value
 
 // Cargar catálogo de puestos para resolver nombre→id
 const cargarMapaPuestos = async () => {
@@ -221,27 +279,51 @@ const headersEmpleados = [
 const periodoActivo = ref(true)
 const diasRestantes = ref(0)
 const deadline = ref('')
+const periodoStatus = ref('active')
+const ultimoViernesTxt = ref('')
 
 const loadPeriodoEvaluacion = async () => {
   const usuarioId = sessionStorage.getItem('usuario_id')
   try {
-    const res = await dashboardService.getAlertas(usuarioId)
-    const todayStr = new Date().toISOString().split('T')[0]
-    const dlStr = `${todayStr} 23:59:59`
     const now = new Date()
-    const dl = new Date(String(dlStr).replace(' ', 'T'))
-    const diffMs = dl.getTime() - now.getTime()
-    const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
-    diasRestantes.value = daysLeft
+    const alertasSrv = await dashboardService.getAlertas(usuarioId)
+    const rd = alertasSrv?.data || {}
+    const payload = rd.data || rd
+    const lt = payload?.liberacion_tardia || payload?.liberacionTardia || payload?.late_release || null
+    lateEval.value = lt && typeof lt === 'object'
+      ? { enabled: !!lt.enabled, mes: Number(lt.mes || 0), anio: Number(lt.anio || lt.año || 0) }
+      : null
+
+    const { status, lastFriday, start, end } = getEvaluationStatus(now)
+    const dlStr = formatBackendDateTimeLocal(end)
     deadline.value = dlStr
-    periodoActivo.value = daysLeft > 0
-    if (daysLeft > 0) {
-      mensaje.value = `Periodo activo. Restan ${daysLeft} días para evaluar.`
+    periodoStatus.value = status
+    ultimoViernesTxt.value = formatDateEs(lastFriday)
+
+    if (status === 'pending') {
+      const diffMs = start.getTime() - now.getTime()
+      const daysUntil = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+      diasRestantes.value = daysUntil
+      periodoActivo.value = false
+      mensaje.value = `Aún no inicia el periodo de evaluación. Se habilita el ${ultimoViernesTxt.value} (último viernes del mes).`
       mensajeTipo.value = 'info'
-    } else {
-      mensaje.value = `Periodo de evaluación vencido. Límite ${dlStr}.`
-      mensajeTipo.value = 'error'
+      return
     }
+
+    if (status === 'active') {
+      const diffMs = end.getTime() - now.getTime()
+      const hoursLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60)))
+      diasRestantes.value = 1
+      periodoActivo.value = true
+      mensaje.value = `Hoy es día de evaluación. Disponible por ${hoursLeft} hora${hoursLeft === 1 ? '' : 's'} más (límite ${dlStr}).`
+      mensajeTipo.value = 'success'
+      return
+    }
+
+    diasRestantes.value = 0
+    periodoActivo.value = false
+    mensaje.value = `Periodo de evaluación vencido. Fue el ${ultimoViernesTxt.value} (límite ${dlStr}).`
+    mensajeTipo.value = 'error'
   } catch (e) {}
 }
 
@@ -325,13 +407,19 @@ const seleccionarPuesto = async (puesto) => {
     // Permitimos continuar aunque esté cargando
   }
   if (puesto.evaluado) {
-    mensaje.value = `Ya existe una evaluación de ${puesto.nombre} para este mes.`
+    const periodoTxt = isLateMode.value ? `${monthName(mesEvaluacion.value)} ${anioEvaluacion.value}` : 'este mes'
+    mensaje.value = `Ya existe una evaluación de ${puesto.nombre} para ${periodoTxt}.`
     mensajeTipo.value = 'info'
     return
   }
-  if (!periodoActivo.value) {
-    mensaje.value = `Periodo de evaluación vencido. Límite ${deadline.value || ''}.`
-    mensajeTipo.value = 'error'
+  if (!periodoActivo.value && !isLateMode.value) {
+    if (periodoStatus.value === 'pending') {
+      mensaje.value = `Evaluación bloqueada. Se habilita el ${ultimoViernesTxt.value} (último viernes del mes).`
+      mensajeTipo.value = 'info'
+    } else {
+      mensaje.value = `Periodo de evaluación vencido. Fue el ${ultimoViernesTxt.value} (límite ${deadline.value || ''}).`
+      mensajeTipo.value = 'error'
+    }
     return
   }
   const estacionId = estacionIdSesion()
@@ -365,11 +453,18 @@ const seleccionarPuesto = async (puesto) => {
     return okPuesto && okEstacion && okFecha
   })
   if (registros.length > 0) {
-    mensaje.value = `Ya existe una evaluación de ${puesto.nombre} para este mes.`
+    const periodoTxt = isLateMode.value ? `${monthName(m)} ${y}` : 'este mes'
+    mensaje.value = `Ya existe una evaluación de ${puesto.nombre} para ${periodoTxt}.`
     mensajeTipo.value = 'info'
     return
   }
-  router.push({ name: 'EvaluacionProceso', params: { puestoNombre: puesto.nombre } })
+  router.push({
+    name: 'EvaluacionProceso',
+    params: { puestoNombre: puesto.nombre },
+    query: isLateMode.value
+      ? { mes: String(m), anio: String(y), late: '1' }
+      : {}
+  })
 }
 
 onMounted(async () => {

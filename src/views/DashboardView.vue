@@ -125,6 +125,7 @@
 import { ref, onMounted, computed, nextTick } from 'vue'
 import { Chart, registerables } from 'chart.js'
 import { evaluacionService, stationService, userService, dashboardService } from '@/services/apiService.js'
+import { formatBackendDateTimeLocal, formatDateEs, getEvaluationStatus, parseLocalDateTime } from '@/utils/evaluationPeriod'
 
 // Registrar Chart.js
 Chart.register(...registerables)
@@ -330,38 +331,45 @@ const generarAlertas = (responseData) => {
   const rd = responseData?.data || {}
   const payload = rd.data || rd
   const nuevas = []
-  const deadlineStr = payload?.deadline
-  if (deadlineStr) {
-    const now = new Date()
-    const dl = new Date(String(deadlineStr).replace(' ', 'T'))
-    const diffMs = dl.getTime() - now.getTime()
-    const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
-    let color = 'info'
-    let icon = 'mdi-clock-outline'
-    let text = ''
-    if (daysLeft > 6) {
-      color = 'info'
-      icon = 'mdi-calendar-check'
-      text = `Periodo activo. Restan ${daysLeft} días (límite ${deadlineStr}).`
-    } else if (daysLeft >= 3) {
-      color = 'warning'
-      icon = 'mdi-clock-alert'
-      text = `Quedan ${daysLeft} días para completar evaluaciones (límite ${deadlineStr}).`
-    } else if (daysLeft >= 1) {
-      color = 'error'
-      icon = 'mdi-clock-alert-outline'
-      text = `Últimos ${daysLeft} día${daysLeft === 1 ? '' : 's'} para evaluar (límite ${deadlineStr}).`
-    } else {
-      color = 'error'
-      icon = 'mdi-calendar-remove'
-      text = `Periodo de evaluación vencido (límite ${deadlineStr}).`
-    }
-    nuevas.push({ id: 'periodo', message: text, color, icon })
+  const now = new Date()
+  const { status, lastFriday, start, end } = getEvaluationStatus(now)
+
+  const backendDeadlineStr = payload?.deadline || ''
+  const backendDl = parseLocalDateTime(backendDeadlineStr)
+  const dlStr = backendDeadlineStr || formatBackendDateTimeLocal(backendDl || end)
+
+  let color = 'info'
+  let icon = 'mdi-calendar'
+  let text = ''
+
+  if (status === 'pending') {
+    const diffMs = start.getTime() - now.getTime()
+    const daysUntil = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+    color = 'info'
+    icon = 'mdi-calendar-clock'
+    text = `El periodo de evaluación se habilita el ${formatDateEs(lastFriday)} (último viernes del mes). Faltan ${daysUntil} día${daysUntil === 1 ? '' : 's'}.`
+  } else if (status === 'active') {
+    const diffMs = end.getTime() - now.getTime()
+    const hoursLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60)))
+    color = 'success'
+    icon = 'mdi-calendar-check'
+    text = `Hoy es día de evaluación. Disponible por ${hoursLeft} hora${hoursLeft === 1 ? '' : 's'} más (límite ${dlStr}).`
+  } else {
+    color = 'error'
+    icon = 'mdi-calendar-remove'
+    text = `Periodo de evaluación vencido. Fue el ${formatDateEs(lastFriday)} (límite ${dlStr}).`
   }
-  const puestos = payload?.atrasos?.puestos || []
-  const empleados = payload?.atrasos?.empleados || []
-  puestos.forEach(p => nuevas.push({ id: `p-${p.puesto_id}`, message: `${p.puesto_nombre}: ${p.pendientes} pendientes`, color: 'warning', icon: 'mdi-alert' }))
-  empleados.forEach(e => nuevas.push({ id: `e-${e.empleado_id}`, message: `Pendiente: ${e.empleado_nombre} (${e.puesto_nombre})`, color: 'error', icon: 'mdi-account-alert' }))
+
+  nuevas.push({ id: 'periodo', message: text, color, icon })
+  if (status !== 'pending') {
+    const puestos = payload?.atrasos?.puestos || []
+    const empleados = payload?.atrasos?.empleados || []
+    const puestosLabel = status === 'active' ? 'por evaluar hoy' : 'pendientes'
+    const puestosColor = status === 'active' ? 'warning' : 'error'
+    const empleadosColor = status === 'active' ? 'warning' : 'error'
+    puestos.forEach(p => nuevas.push({ id: `p-${p.puesto_id}`, message: `${p.puesto_nombre}: ${p.pendientes} ${puestosLabel}`, color: puestosColor, icon: 'mdi-alert' }))
+    empleados.forEach(e => nuevas.push({ id: `e-${e.empleado_id}`, message: `${e.empleado_nombre} (${e.puesto_nombre})`, color: empleadosColor, icon: 'mdi-account-alert' }))
+  }
   alertas.value = nuevas
 }
 
